@@ -1,12 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { Server as SocketIOServer } from 'socket.io';
-import { createServer as createViteServer } from 'vite';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -82,7 +77,7 @@ io.on('connection', (socket) => {
 // REST Healthcheck & User Accounts APIs
 app.use(express.json());
 
-// CORS middleware for cross-origin requests (e.g. from GitHub Pages)
+// CORS middleware for cross-origin requests (from GitHub Pages)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
@@ -117,21 +112,31 @@ app.post('/api/users/sync', (req, res) => {
 // Serve frontend via Vite in dev mode or static files in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.warn('Vite dev server middleware not loaded:', e);
+    }
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.join(distPath, 'index.html');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          res.status(200).json({ status: 'ok', service: 'Gameland Penguin API', port: PORT });
+        }
+      });
     });
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Gameland Penguin Real-Time Server running at http://0.0.0.0:${PORT}`);
+    console.log(`🚀 Gameland Penguin Real-Time Server running on port ${PORT}`);
   });
 }
 
