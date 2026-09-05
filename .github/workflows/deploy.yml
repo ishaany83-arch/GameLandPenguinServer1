@@ -35,7 +35,7 @@ jobs:
       - name: Build project
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-        run: npm install --legacy-peer-deps
+        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
