@@ -1,5 +1,23 @@
 [
   {
+    "id": "joshis1",
+    "title": "Joshis1",
+    "slug": "joshis1",
+    "category": "Portal",
+    "description": "Dedicated gaming portal with a collection of unblocked web games.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/joshis1/",
+    "embedType": "iframe",
+    "tags": ["portal", "hub", "unblocked", "collection"],
+    "rating": 4.7,
+    "playCount": 0,
+    "controls": [
+      { "key": "Mouse Navigation", "action": "Browse Games" }
+    ],
+    "author": "Joshis1 Games",
+    "isNew": true
+  },
+  {
     "id": "retro-bowl",
     "title": "Retro Bowl",
     "slug": "retro-bowl",
