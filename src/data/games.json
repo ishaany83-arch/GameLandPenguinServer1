@@ -409,5 +409,62 @@
       { "key": "Left Click", "action": "Catch Fish & Buy Upgrades" }
     ],
     "author": "Pebbles Idle Games"
+  },
+  {
+    "id": "build-an-army",
+    "title": "Build an Army",
+    "slug": "build-an-army",
+    "category": "Strategy",
+    "description": "Command your forces, build your military, and conquer strategic territories.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/Build-an-Army/",
+    "embedType": "iframe",
+    "tags": ["strategy", "army", "war", "tactical"],
+    "rating": 4.6,
+    "playCount": 8500,
+    "controls": [
+      { "key": "Mouse", "action": "Select & Command Units" },
+      { "key": "Spacebar", "action": "Deploy Army" }
+    ],
+    "author": "Build an Army Web",
+    "isNew": true
+  },
+  {
+    "id": "basketball-stars",
+    "title": "Basketball Stars",
+    "slug": "basketball-stars",
+    "category": "Sports",
+    "description": "Intense arcade basketball gameplay with trick shots and competitive multiplayer action.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1546519638-68711109bc00?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/BasketballStars/",
+    "embedType": "iframe",
+    "tags": ["sports", "basketball", "arcade", "popular"],
+    "rating": 4.8,
+    "playCount": 19800,
+    "controls": [
+      { "key": "Mouse / Touch", "action": "Aim & Shoot" },
+      { "key": "Spacebar", "action": "Power Shot" }
+    ],
+    "author": "Basketball Stars Web",
+    "isPopular": true
+  },
+  {
+    "id": "slope-game",
+    "title": "Slope Game",
+    "slug": "slope-game",
+    "category": "Racing",
+    "description": "Roll your ball down an endless slope, avoid obstacles, and achieve high speeds.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/Slope-Game/",
+    "embedType": "iframe",
+    "tags": ["racing", "ball", "slope", "skill", "popular"],
+    "rating": 4.9,
+    "playCount": 35400,
+    "controls": [
+      { "key": "Arrow Keys / A & D", "action": "Steer Ball" },
+      { "key": "Space", "action": "Jump" }
+    ],
+    "author": "Slope Game Web",
+    "isPopular": true
   }
 ]
