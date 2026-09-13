@@ -466,5 +466,62 @@
     ],
     "author": "Slope Game Web",
     "isPopular": true
+  },
+  {
+    "id": "drift-boss",
+    "title": "Drift Boss",
+    "slug": "drift-boss",
+    "category": "Racing",
+    "description": "Master high-speed drifting and precision driving in intense racing challenges.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/DriftBoss/",
+    "embedType": "iframe",
+    "tags": ["racing", "drift", "driving", "skill", "arcade"],
+    "rating": 4.8,
+    "playCount": 0,
+    "controls": [
+      { "key": "Arrow Keys / WASD", "action": "Steer & Drift" },
+      { "key": "Space", "action": "Handbrake" }
+    ],
+    "author": "Drift Boss Web",
+    "isNew": true
+  },
+  {
+    "id": "dashmetry-dash",
+    "title": "Dashmetry Dash",
+    "slug": "dashmetry-dash",
+    "category": "Rhythm",
+    "description": "Fast-paced rhythm platformer with dynamic obstacles and beat-synchronized challenges.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/GMTEST/",
+    "embedType": "iframe",
+    "tags": ["rhythm", "platformer", "arcade", "music"],
+    "rating": 4.7,
+    "playCount": 0,
+    "controls": [
+      { "key": "Space / Click / Up Arrow", "action": "Jump" }
+    ],
+    "author": "Dashmetry Web",
+    "isNew": true
+  },
+  {
+    "id": "cookie-clicker-2",
+    "title": "Cookie Clicker",
+    "slug": "cookie-clicker-2",
+    "category": "Idle",
+    "description": "The ultimate idle clicker game. Click cookies, buy upgrades, and unlock prestige mechanics.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1579373903781-fd5c0c30c4cd?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaanyus-web.github.io/cookieclicker/",
+    "embedType": "iframe",
+    "tags": ["clicker", "idle", "tycoon", "incremental"],
+    "rating": 4.9,
+    "playCount": 0,
+    "controls": [
+      { "key": "Left Click", "action": "Click Cookies" },
+      { "key": "Mouse", "action": "Buy & Upgrade" }
+    ],
+    "author": "Cookie Clicker / Web Edition",
+    "isPopular": true,
+    "isNew": true
   }
 ]
