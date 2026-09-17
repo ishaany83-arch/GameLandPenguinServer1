@@ -59,6 +59,26 @@
     "isNew": true
   },
   {
+    "id": "polytrack-v63",
+    "title": "Polytrack (v6.3)",
+    "slug": "polytrack-v63",
+    "category": "Racing",
+    "description": "Low-poly arcade racing with updated handling, tracks, and high-speed thrills.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaany83-arch.github.io/PolyTrack-0.6.3/",
+    "embedType": "iframe",
+    "tags": ["racing", "3d", "track-builder", "cars", "arcade"],
+    "rating": 4.8,
+    "playCount": 0,
+    "controls": [
+      { "key": "WASD / Arrows", "action": "Drive & Steer" },
+      { "key": "Space", "action": "Handbrake / Drift" },
+      { "key": "R", "action": "Restart Track" }
+    ],
+    "author": "Polytrack Studio",
+    "isNew": true
+  },
+  {
     "id": "brawl-stars",
     "title": "Brawl Stars",
     "slug": "brawl-stars",
@@ -303,6 +323,24 @@
       { "key": "Mouse Navigation", "action": "Browse & Play" }
     ],
     "author": "Unblocked 2026"
+  },
+  {
+    "id": "worldgusser",
+    "title": "WorldGusser",
+    "slug": "worldgusser",
+    "category": "Quiz",
+    "description": "Global guessing challenge with geography, flags, and world trivia.",
+    "thumbnailUrl": "https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&q=80&w=600",
+    "embedUrl": "https://ishaany83-arch.github.io/WG/",
+    "embedType": "iframe",
+    "tags": ["quiz", "world", "guessing", "geography", "trivia"],
+    "rating": 4.7,
+    "playCount": 0,
+    "controls": [
+      { "key": "Mouse / Touch", "action": "Select Guess" }
+    ],
+    "author": "WorldGusser Studio",
+    "isNew": true
   },
   {
     "id": "2048",
