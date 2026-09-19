@@ -19,7 +19,7 @@ import { GameCard } from './components/GameCard';
 import { GamePlayer } from './components/GamePlayer';
 import { SuggestGameModal } from './components/SuggestGameModal';
 import { GameStatusModal } from './components/GameStatusModal';
-import { TermsModal } from './components/TermsModal';
+import { TermsModal, TermsTab } from './components/TermsModal';
 import { ContactModal } from './components/ContactModal';
 import { AdminControlModal } from './components/AdminControlModal';
 import { PanicKeyModal } from './components/PanicKeyModal';
@@ -47,6 +47,7 @@ import {
   ArrowUpDown,
   PanelLeftOpen,
   Snowflake,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 
@@ -60,6 +61,7 @@ export default function App() {
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [termsModalTab, setTermsModalTab] = useState<TermsTab>('all');
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isPanicModalOpen, setIsPanicModalOpen] = useState(false);
@@ -282,7 +284,14 @@ export default function App() {
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         onOpenSuggestForm={() => setIsSuggestModalOpen(true)}
         onOpenGameStatus={() => setIsStatusModalOpen(true)}
-        onOpenTerms={() => setIsTermsModalOpen(true)}
+        onOpenPrivacy={() => {
+          setTermsModalTab('privacy');
+          setIsTermsModalOpen(true);
+        }}
+        onOpenTerms={() => {
+          setTermsModalTab('terms');
+          setIsTermsModalOpen(true);
+        }}
         onOpenContact={() => setIsContactModalOpen(true)}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
         onOpenPanicKey={() => setIsPanicModalOpen(true)}
@@ -321,7 +330,14 @@ export default function App() {
           onClose={() => setIsSidebarOpen(false)}
           onOpenSuggestForm={() => setIsSuggestModalOpen(true)}
           onOpenGameStatus={() => setIsStatusModalOpen(true)}
-          onOpenTerms={() => setIsTermsModalOpen(true)}
+          onOpenPrivacy={() => {
+            setTermsModalTab('privacy');
+            setIsTermsModalOpen(true);
+          }}
+          onOpenTerms={() => {
+            setTermsModalTab('terms');
+            setIsTermsModalOpen(true);
+          }}
           onOpenContact={() => setIsContactModalOpen(true)}
           onOpenPanicKey={() => setIsPanicModalOpen(true)}
           onOpenProfile={() => setIsProfileModalOpen(true)}
@@ -395,6 +411,19 @@ export default function App() {
                               <span>Slide Into Random Game 🐧</span>
                             </button>
                           )}
+
+                          <button
+                            onClick={() => {
+                              setTermsModalTab('privacy');
+                              setIsTermsModalOpen(true);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center gap-2 transition-all shadow-sm active:scale-95 group cursor-pointer"
+                            id="hero-privacy-shield-btn"
+                            title="Read how GameLand guarantees zero tracking and COPPA privacy protection"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                            <span>100% Privacy & COPPA Protected</span>
+                          </button>
                         </div>
                       </div>
 
@@ -576,7 +605,20 @@ export default function App() {
               <span>Suggest a Game / Proxy</span>
             </button>
             <button
-              onClick={() => setIsTermsModalOpen(true)}
+              onClick={() => {
+                setTermsModalTab('privacy');
+                setIsTermsModalOpen(true);
+              }}
+              className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors flex items-center gap-1"
+              id="footer-privacy-btn"
+            >
+              <span>Privacy Policy</span>
+            </button>
+            <button
+              onClick={() => {
+                setTermsModalTab('terms');
+                setIsTermsModalOpen(true);
+              }}
               className="text-cyan-400 hover:text-cyan-300 font-bold transition-colors flex items-center gap-1"
               id="footer-terms-btn"
             >
@@ -612,6 +654,7 @@ export default function App() {
         isOpen={isTermsModalOpen}
         onClose={() => setIsTermsModalOpen(false)}
         onOpenSuggestForm={() => setIsSuggestModalOpen(true)}
+        initialTab={termsModalTab}
       />
 
       {/* Contact Page Modal */}

@@ -16,6 +16,7 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   onOpenSuggestForm?: () => void;
   onOpenGameStatus?: () => void;
+  onOpenPrivacy?: () => void;
   onOpenTerms?: () => void;
   onOpenContact?: () => void;
   onOpenAdmin?: () => void;
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   onOpenSuggestForm,
   onOpenGameStatus,
+  onOpenPrivacy,
   onOpenTerms,
   onOpenContact,
   onOpenAdmin,
@@ -162,6 +164,19 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
+          {/* Privacy Policy Button */}
+          {onOpenPrivacy && (
+            <button
+              onClick={onOpenPrivacy}
+              title="View Privacy Policy & COPPA Protection"
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/80 text-slate-300 hover:text-emerald-400 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+              id="header-privacy-btn"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Privacy</span>
+            </button>
+          )}
+
           {/* Terms & Conditions Button */}
           {onOpenTerms && (
             <button
@@ -171,7 +186,7 @@ export const Header: React.FC<HeaderProps> = ({
               id="header-terms-btn"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden md:inline">Terms</span>
+              <span className="hidden sm:inline">Terms</span>
             </button>
           )}
 

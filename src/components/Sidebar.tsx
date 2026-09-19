@@ -38,6 +38,7 @@ interface SidebarProps {
   onClose?: () => void;
   onOpenSuggestForm?: () => void;
   onOpenGameStatus?: () => void;
+  onOpenPrivacy?: () => void;
   onOpenTerms?: () => void;
   onOpenContact?: () => void;
   onOpenPanicKey?: () => void;
@@ -68,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClose,
   onOpenSuggestForm,
   onOpenGameStatus,
+  onOpenPrivacy,
   onOpenTerms,
   onOpenContact,
   onOpenPanicKey,
@@ -314,6 +316,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 font-extrabold">
                 NEW
               </span>
+            </button>
+          )}
+
+          {onOpenPrivacy && (
+            <button
+              onClick={onOpenPrivacy}
+              className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-emerald-400 border border-slate-700/60 transition-all shadow-sm group"
+              id="sidebar-privacy-btn"
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span>Privacy Policy</span>
+              </div>
             </button>
           )}
 
