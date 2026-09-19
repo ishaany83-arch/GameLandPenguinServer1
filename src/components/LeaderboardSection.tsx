@@ -26,11 +26,40 @@ import {
   resetAllLeaderboardsToZero,
   deleteHighScoreEntry,
 } from '../utils/leaderboards';
+import { getAvatarById } from '../utils/penguinAvatars';
 
 interface LeaderboardSectionProps {
   game: Game;
   currentUser: UserAccount | null;
 }
+
+const renderEntryAvatar = (avatarValue?: string, size: 'sm' | 'md' | 'lg' = 'sm') => {
+  if (!avatarValue) return <span className="text-base">🎮</span>;
+  if (avatarValue.startsWith('data:image/') || avatarValue.startsWith('http') || avatarValue.startsWith('blob:')) {
+    const sizeClasses = size === 'lg' ? 'w-10 h-10' : size === 'md' ? 'w-8 h-8' : 'w-5 h-5';
+    return (
+      <img
+        src={avatarValue}
+        alt="Avatar"
+        className={`${sizeClasses} rounded-full object-cover border border-slate-700 shadow-xs shrink-0`}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  const avatarObj = getAvatarById(avatarValue);
+  if (avatarObj.imageUrl) {
+    const sizeClasses = size === 'lg' ? 'w-10 h-10' : size === 'md' ? 'w-8 h-8' : 'w-5 h-5';
+    return (
+      <img
+        src={avatarObj.imageUrl}
+        alt="Avatar"
+        className={`${sizeClasses} rounded-full object-cover border border-slate-700 shadow-xs shrink-0`}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  return <span className={size === 'lg' ? 'text-3xl' : size === 'md' ? 'text-2xl' : 'text-base'}>{avatarObj.emoji || avatarValue}</span>;
+};
 
 export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({ game, currentUser }) => {
   const [leaderboard, setLeaderboard] = useState<HighScoreEntry[]>([]);
@@ -204,7 +233,7 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({ game, cu
                     <Medal className="w-3 h-3 text-slate-300" />
                     <span>2nd</span>
                   </div>
-                  <div className="text-2xl mt-2">{top3[1].avatar || '🥈'}</div>
+                  <div className="mt-2 flex items-center justify-center">{renderEntryAvatar(top3[1].avatar, 'md')}</div>
                   <h4 className="text-xs font-bold text-slate-200 mt-1 line-clamp-1 w-full">{top3[1].playerName}</h4>
                   <p className="text-xs font-extrabold text-slate-300 mt-0.5">{top3[1].score.toLocaleString()}</p>
                 </div>
@@ -219,7 +248,7 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({ game, cu
                     <Crown className="w-3 h-3 fill-slate-950 text-slate-950" />
                     <span>#1 CHAMP</span>
                   </div>
-                  <div className="text-3xl mt-1 animate-bounce">{top3[0].avatar || '👑'}</div>
+                  <div className="mt-1 animate-bounce flex items-center justify-center">{renderEntryAvatar(top3[0].avatar, 'lg')}</div>
                   <h4 className="text-xs font-extrabold text-amber-200 mt-1 line-clamp-1 w-full">{top3[0].playerName}</h4>
                   <p className="text-sm font-black text-amber-400 mt-0.5">{top3[0].score.toLocaleString()} pts</p>
                 </div>
@@ -232,7 +261,7 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({ game, cu
                     <Medal className="w-3 h-3 text-amber-500" />
                     <span>3rd</span>
                   </div>
-                  <div className="text-2xl mt-2">{top3[2].avatar || '🥉'}</div>
+                  <div className="mt-2 flex items-center justify-center">{renderEntryAvatar(top3[2].avatar, 'md')}</div>
                   <h4 className="text-xs font-bold text-slate-200 mt-1 line-clamp-1 w-full">{top3[2].playerName}</h4>
                   <p className="text-xs font-extrabold text-amber-300/80 mt-0.5">{top3[2].score.toLocaleString()}</p>
                 </div>
@@ -297,7 +326,9 @@ export const LeaderboardSection: React.FC<LeaderboardSectionProps> = ({ game, cu
                         {rank}
                       </span>
 
-                      <span className="text-base shrink-0">{entry.avatar || '🎮'}</span>
+                      <div className="shrink-0 flex items-center justify-center">
+                        {renderEntryAvatar(entry.avatar, 'sm')}
+                      </div>
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">

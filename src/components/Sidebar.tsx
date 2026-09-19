@@ -371,8 +371,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   title="Customize penguin avatar icon & settings"
                 >
                   <div className="flex items-center gap-2 overflow-hidden">
-                    <div className={`w-7 h-7 rounded-lg ${sidebarAvatar.bgColor} border ${sidebarAvatar.borderColor} flex items-center justify-center text-sm shrink-0 group-hover:scale-105 transition-transform`}>
-                      <span>{sidebarAvatar.emoji}</span>
+                    <div className={`w-7 h-7 rounded-lg ${sidebarAvatar.bgColor} border ${sidebarAvatar.borderColor} flex items-center justify-center text-sm shrink-0 overflow-hidden group-hover:scale-105 transition-transform`}>
+                      {sidebarAvatar.imageUrl ? (
+                        <img src={sidebarAvatar.imageUrl} alt={currentUser.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span>{sidebarAvatar.emoji}</span>
+                      )}
                     </div>
                     <div className="truncate">
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Signed In As</p>

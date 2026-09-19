@@ -250,8 +250,12 @@ export const Header: React.FC<HeaderProps> = ({
                   }`}
                   id="header-user-profile-btn"
                 >
-                  <div className={`w-6 h-6 rounded-lg ${userAvatarObj.bgColor} border ${userAvatarObj.borderColor} flex items-center justify-center text-sm shrink-0 shadow-xs group-hover:scale-110 transition-transform ${currentUser.activeProfileFrame || ''}`}>
-                    <span>{userAvatarObj.emoji}</span>
+                  <div className={`w-6 h-6 rounded-lg ${userAvatarObj.bgColor} border ${userAvatarObj.borderColor} flex items-center justify-center text-sm shrink-0 overflow-hidden shadow-xs group-hover:scale-110 transition-transform ${currentUser.activeProfileFrame || ''}`}>
+                    {userAvatarObj.imageUrl ? (
+                      <img src={userAvatarObj.imageUrl} alt={currentUser.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span>{userAvatarObj.emoji}</span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5">

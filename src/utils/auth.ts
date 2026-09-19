@@ -679,7 +679,19 @@ export function toggleUserAdminStatus(username: string): boolean {
 export function updateUserAvatar(username: string, avatarId: string): UserAccount | null {
   const users = getStoredUsers();
   const key = username.toLowerCase();
-  if (!users[key]) return null;
+  
+  if (!users[key]) {
+    const session = getCurrentSessionUser();
+    if (session) {
+      const updatedSession: UserAccount = {
+        ...session,
+        avatar: avatarId,
+      };
+      setCurrentSessionUser(updatedSession);
+      return updatedSession;
+    }
+    return null;
+  }
   
   users[key] = {
     ...users[key],
@@ -687,7 +699,33 @@ export function updateUserAvatar(username: string, avatarId: string): UserAccoun
   };
   saveUsers(users);
 
-  // Update current session user if matching
+  const baseAccount: UserAccount = {
+    username: key,
+    name: users[key].name,
+    email: users[key].email,
+    createdAt: users[key].createdAt,
+    lastLogin: users[key].lastLogin,
+    isAdmin: users[key].isAdmin,
+    avatar: avatarId,
+    isTestAccount: users[key].isTestAccount,
+    testAccountUsed: users[key].testAccountUsed,
+    testAccountUsedAt: users[key].testAccountUsedAt,
+    isVip: users[key].isVip,
+    vipLevel: users[key].vipLevel,
+    vipGrantedAt: users[key].vipGrantedAt,
+    loginStreak: users[key].loginStreak,
+    lastStreakDate: users[key].lastStreakDate,
+    hasPenguinBadge: users[key].hasPenguinBadge,
+    mysteryGifts: users[key].mysteryGifts,
+    activeProfileFrame: users[key].activeProfileFrame,
+    unlockedTrophyIds: users[key].unlockedTrophyIds,
+    points: users[key].points,
+    purchasedItemIds: users[key].purchasedItemIds,
+    unlockedTitles: users[key].unlockedTitles,
+    pendingVipPass: users[key].pendingVipPass,
+  };
+
+  // Update current session user if matching or if session exists
   const session = getCurrentSessionUser();
   if (session && session.username.toLowerCase() === key) {
     const updatedSession: UserAccount = {
@@ -705,7 +743,7 @@ export function updateUserAvatar(username: string, avatarId: string): UserAccoun
     return updatedSession;
   }
 
-  return null;
+  return baseAccount;
 }
 
 export function getTestAccountsList(): (UserAccount & { passwordHash: string; used: boolean; usedAt?: string })[] {
