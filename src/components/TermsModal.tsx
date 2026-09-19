@@ -24,7 +24,7 @@ export const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose, onOpenS
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
-                <span>Terms of Service & Website Rules</span>
+                <span>Terms of Service, Privacy & Website Rules</span>
               </h2>
               <p className="text-xs text-slate-400">Last Updated: August 2026</p>
             </div>
@@ -129,8 +129,30 @@ export const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose, onOpenS
           {/* Section 4 */}
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-base border-b border-slate-800/80 pb-1.5">
+              <ShieldCheck className="w-4 h-4" />
+              <h3>4. Privacy & Data Use</h3>
+            </div>
+            <div className="space-y-2 text-xs text-slate-300">
+              <p>
+                <strong className="text-slate-100">Information We May Collect:</strong> We may collect technical information such as browser type, device details, IP address, usage patterns, game activity, support messages, and locally saved profile data needed to improve gameplay and site reliability.
+              </p>
+              <p>
+                <strong className="text-slate-100">How We Use It:</strong> Data is used to maintain security, diagnose bugs, improve site performance, support users, prevent abuse, and personalize the gaming experience where applicable.
+              </p>
+              <p>
+                <strong className="text-slate-100">No Sale of Personal Data:</strong> We do not sell your personal information to third parties. We may share limited technical data with trusted service providers, analytics tools, or advertisers only as needed to run and improve the platform.
+              </p>
+              <p>
+                <strong className="text-slate-100">Your Responsibility:</strong> Please do not share passwords, personal addresses, phone numbers, or other private information in public comments, forums, or in-game chats. We are not responsible for information you voluntarily post publicly.
+              </p>
+            </div>
+          </section>
+
+          {/* Section 5 */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-base border-b border-slate-800/80 pb-1.5">
               <ExternalLink className="w-4 h-4" />
-              <h3>4. Links & Advertisements</h3>
+              <h3>5. Links & Advertisements</h3>
             </div>
             <div className="space-y-2 text-xs text-slate-300">
               <p>
@@ -142,25 +164,25 @@ export const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose, onOpenS
             </div>
           </section>
 
-          {/* Section 5 */}
-          <section className="space-y-3">
-            <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-base border-b border-slate-800/80 pb-1.5">
-              <AlertTriangle className="w-4 h-4" />
-              <h3>5. Limitation of Liability</h3>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              To the fullest extent permitted by law, our website team and operators are not liable for any direct, indirect, or accidental technical issues, lost save data, or server downtime resulting from your use of the site.
-            </p>
-          </section>
-
           {/* Section 6 */}
           <section className="space-y-3">
             <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-base border-b border-slate-800/80 pb-1.5">
-              <ShieldCheck className="w-4 h-4" />
-              <h3>6. Updates to These Terms</h3>
+              <AlertTriangle className="w-4 h-4" />
+              <h3>6. Limitation of Liability</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              We may update these terms from time to time. Continuing to use the website means you accept and agree to the current version of these rules.
+              To the fullest extent permitted by law, our website team and operators are not liable for any direct, indirect, or accidental technical issues, lost save data, privacy breaches caused by user-shared information, or server downtime resulting from your use of the site.
+            </p>
+          </section>
+
+          {/* Section 7 */}
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 text-cyan-400 font-extrabold text-base border-b border-slate-800/80 pb-1.5">
+              <ShieldCheck className="w-4 h-4" />
+              <h3>7. Updates to These Terms</h3>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              We may update these terms and privacy practices from time to time. Continuing to use the website means you accept and agree to the current version of these rules.
             </p>
           </section>
 
@@ -172,7 +194,7 @@ export const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose, onOpenS
                 <span>Contact Us</span>
               </div>
               <p className="text-xs text-slate-400">
-                If you run into technical issues, find a broken game, or have questions about these terms, please send us a message through our Contact / Suggestion form.
+                If you run into technical issues, find a broken game, have privacy questions, or have questions about these terms, please send us a message through our Contact / Suggestion form.
               </p>
             </div>
             {onOpenSuggestForm && (
