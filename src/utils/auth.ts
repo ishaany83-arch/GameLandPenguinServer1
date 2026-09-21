@@ -1,4 +1,4 @@
-import { emitSocketUsersSync, fetchServerUsersSync, BACKEND_URL } from './socketClient';
+import { emitSocketUsersSync, emitSocketUserRegister, fetchServerUsersSync, BACKEND_URL, getEffectiveBackendUrl } from './socketClient';
 
 export interface MysteryGiftItem {
   id: string;
@@ -288,11 +288,16 @@ export function saveUsers(users: Record<string, StoredUserRecord>) {
   try {
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
     if (typeof window !== 'undefined') {
-      fetch(`${BACKEND_URL}/api/users/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ users }),
-      }).catch(() => {});
+      window.dispatchEvent(new CustomEvent('gameland_users_updated', { detail: users }));
+      emitSocketUsersSync(users);
+      const backend = getEffectiveBackendUrl();
+      if (backend) {
+        fetch(`${backend}/api/users/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ users }),
+        }).catch(() => {});
+      }
     }
   } catch (e) {
     console.error('Failed to save users to localStorage', e);
@@ -300,13 +305,23 @@ export function saveUsers(users: Record<string, StoredUserRecord>) {
 }
 
 export async function syncUsersWithServer(): Promise<Record<string, StoredUserRecord>> {
+  const backend = getEffectiveBackendUrl();
   try {
-    const res = await fetch(`${BACKEND_URL}/api/users`);
+    const res = await fetch(`${backend}/api/users`);
     if (res.ok) {
       const serverUsers = await res.json();
       if (serverUsers && typeof serverUsers === 'object') {
         const localUsers = getStoredUsers();
-        const merged = { ...localUsers, ...serverUsers };
+        const merged: Record<string, StoredUserRecord> = { ...localUsers };
+        Object.entries(serverUsers).forEach(([key, sUser]) => {
+          const lowerKey = key.toLowerCase();
+          if (sUser && typeof sUser === 'object') {
+            merged[lowerKey] = {
+              ...(merged[lowerKey] || {}),
+              ...(sUser as StoredUserRecord),
+            };
+          }
+        });
         localStorage.setItem(USERS_KEY, JSON.stringify(merged));
         window.dispatchEvent(new CustomEvent('gameland_users_updated', { detail: merged }));
         return merged;
@@ -387,15 +402,39 @@ export function registerAccount(
   }
 
   const now = new Date().toISOString();
-  users[lowerKey] = {
+  const userRec: StoredUserRecord = {
     passwordHash: password,
     name,
     email,
     createdAt: now,
     lastLogin: now,
   };
+  users[lowerKey] = userRec;
 
   saveUsers(users);
+
+  // Broadcast single user registration to all other connected clients
+  emitSocketUserRegister({
+    username,
+    ...userRec,
+  });
+
+  const backend = getEffectiveBackendUrl();
+  if (typeof window !== 'undefined' && backend) {
+    fetch(`${backend}/api/users/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        user: {
+          username,
+          ...userRec,
+        },
+      }),
+    }).catch((err) => {
+      console.warn('Backend user registration sync standby:', err);
+    });
+  }
 
   const newUser: UserAccount = {
     username,
@@ -651,6 +690,12 @@ export function deleteUserAccount(username: string): boolean {
   const users = getStoredUsers();
   delete users[username.toLowerCase()];
   saveUsers(users);
+  const backend = getEffectiveBackendUrl();
+  if (typeof window !== 'undefined' && backend) {
+    fetch(`${backend}/api/users/${encodeURIComponent(username.toLowerCase())}`, {
+      method: 'DELETE',
+    }).catch(() => {});
+  }
   return true;
 }
 

@@ -119,6 +119,7 @@ import {
   adminApproveVipOrderByUsername,
   adminRejectVipOrderByUsername,
   syncUsersWithServer,
+  saveUsers,
 } from '../utils/auth';
 import {
   resetAllLeaderboardsToZero,
@@ -463,7 +464,13 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
         const content = e.target?.result as string;
         const data = JSON.parse(content);
         if (data.users && Array.isArray(data.users)) {
-          localStorage.setItem('unblocked_users_v2', JSON.stringify(data.users));
+          const formattedUsers: Record<string, any> = {};
+          data.users.forEach((u: any) => {
+            if (u && u.username) formattedUsers[u.username.toLowerCase()] = u;
+          });
+          saveUsers(formattedUsers);
+        } else if (data.users && typeof data.users === 'object') {
+          saveUsers(data.users);
         }
         if (data.siteConfig) {
           saveSiteConfig(data.siteConfig);
@@ -617,11 +624,24 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
       refreshData();
       const handleUserUpdate = () => refreshData();
       window.addEventListener('gameland_users_updated', handleUserUpdate);
+
+      // Auto-poll the server every 3.5 seconds to guarantee all newly registered users appear live
+      const pollInterval = setInterval(() => {
+        syncUsersWithServer().then(() => refreshData());
+      }, 3500);
+
       return () => {
         window.removeEventListener('gameland_users_updated', handleUserUpdate);
+        clearInterval(pollInterval);
       };
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'users') {
+      syncUsersWithServer().then(() => refreshData());
+    }
+  }, [isOpen, activeTab]);
 
   const sessionUser = getCurrentSessionUser();
   const isActualAdmin = !!(sessionUser?.isAdmin || sessionUser?.username.toLowerCase() === 'pebblesthepenguinishaany83');
@@ -2543,17 +2563,32 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
 
               {/* Actions Header */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                <input
-                  type="text"
-                  placeholder="Filter users..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-amber-500/50 min-w-[220px]"
-                />
+                <div className="flex items-center gap-2 flex-1">
+                  <input
+                    type="text"
+                    placeholder="Search registered accounts by username, name, or email..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs focus:outline-none focus:border-amber-500/50 flex-1 min-w-[200px]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      syncUsersWithServer().then(() => refreshData());
+                      setUserMsg('🔄 Synced all registered accounts with server registry!');
+                      setTimeout(() => setUserMsg(''), 3000);
+                    }}
+                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 shadow-sm"
+                    title="Refresh user accounts database from backend server"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>Live Sync</span>
+                  </button>
+                </div>
 
                 <button
                   onClick={() => setShowAddUserForm(!showAddUserForm)}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shrink-0"
                 >
                   <UserPlus className="w-4 h-4" />
                   <span>{showAddUserForm ? 'Close Form' : 'Create User Account'}</span>

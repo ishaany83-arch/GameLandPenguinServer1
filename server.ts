@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import { Server as SocketIOServer } from 'socket.io';
 
 const app = express();
@@ -8,18 +9,20 @@ const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE'],
   },
 });
 
 const PORT = Number(process.env.PORT) || 3000;
+const USERS_FILE_PATH = path.join(process.cwd(), 'users_registry_data.json');
 
 let onlineUsersCount = 1;
 
 // Global User Registry store on server to sync across all computers/browsers
 const serverUsersStore: Record<string, any> = {
   pebblesthepenguinishaany83: {
-    passwordHash: 'Pebbles2026!AdminAccess',
+    username: 'Pebblesthepenguinishaany83',
+    passwordHash: 'Pebblesthepenguinneedsagepoop',
     name: 'Pebbles (Ishaan)',
     email: 'ishaany83@gmail.com',
     createdAt: new Date().toISOString(),
@@ -29,6 +32,40 @@ const serverUsersStore: Record<string, any> = {
     vipLevel: 'Diamond',
   },
 };
+
+// Persistence functions
+function loadPersistedUsers() {
+  try {
+    if (fs.existsSync(USERS_FILE_PATH)) {
+      const data = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === 'object') {
+        Object.entries(parsed).forEach(([key, val]) => {
+          if (val && typeof val === 'object') {
+            serverUsersStore[key.toLowerCase()] = {
+              ...(serverUsersStore[key.toLowerCase()] || {}),
+              ...(val as Record<string, any>),
+            };
+          }
+        });
+        console.log(`✅ Loaded ${Object.keys(serverUsersStore).length} accounts from persistent disk storage.`);
+      }
+    }
+  } catch (err) {
+    console.error('⚠️ Could not load persisted users:', err);
+  }
+}
+
+function savePersistedUsers() {
+  try {
+    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(serverUsersStore, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('⚠️ Failed to save users to disk:', err);
+  }
+}
+
+// Initial load
+loadPersistedUsers();
 
 // Socket.IO Real-time Connection Handling
 io.on('connection', (socket) => {
@@ -49,21 +86,30 @@ io.on('connection', (socket) => {
   // User Account Registration & Sync Socket Event
   socket.on('users:sync_register', (payload: { users?: Record<string, any>; user?: any }) => {
     let updated = false;
-    if (payload.users) {
+    if (payload.users && typeof payload.users === 'object') {
       Object.entries(payload.users).forEach(([key, rec]) => {
         const lowerKey = key.toLowerCase();
-        if (rec) {
-          serverUsersStore[lowerKey] = { ...serverUsersStore[lowerKey], ...rec };
+        if (rec && typeof rec === 'object') {
+          serverUsersStore[lowerKey] = {
+            ...(serverUsersStore[lowerKey] || {}),
+            ...rec,
+            username: (rec as any).username || key,
+          };
           updated = true;
         }
       });
     }
     if (payload.user && payload.user.username) {
       const lowerKey = payload.user.username.toLowerCase();
-      serverUsersStore[lowerKey] = { ...serverUsersStore[lowerKey], ...payload.user };
+      serverUsersStore[lowerKey] = {
+        ...(serverUsersStore[lowerKey] || {}),
+        ...payload.user,
+        username: payload.user.username,
+      };
       updated = true;
     }
     if (updated) {
+      savePersistedUsers();
       io.emit('users:synced_all', serverUsersStore);
     }
   });
@@ -77,7 +123,7 @@ io.on('connection', (socket) => {
 // REST Healthcheck & User Accounts APIs
 app.use(express.json());
 
-// CORS middleware for cross-origin requests (from GitHub Pages)
+// CORS middleware for cross-origin requests (from GitHub Pages or custom domains)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
@@ -89,24 +135,100 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', onlineUsers: onlineUsersCount, uptime: process.uptime() });
+  res.json({
+    status: 'ok',
+    onlineUsers: onlineUsersCount,
+    totalAccounts: Object.keys(serverUsersStore).length,
+    uptime: process.uptime(),
+  });
 });
 
+// Get all registered users
 app.get('/api/users', (req, res) => {
   res.json(serverUsersStore);
 });
 
+// Single user registration endpoint
+app.post('/api/users/register', (req, res) => {
+  const { user, username, password, email, name, passwordHash } = req.body;
+  const targetUser = user || {
+    username,
+    passwordHash: passwordHash || password,
+    email,
+    name,
+    createdAt: new Date().toISOString(),
+    lastLogin: new Date().toISOString(),
+  };
+
+  if (targetUser && targetUser.username) {
+    const lowerKey = targetUser.username.toLowerCase();
+    serverUsersStore[lowerKey] = {
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      ...(serverUsersStore[lowerKey] || {}),
+      ...targetUser,
+      username: targetUser.username,
+    };
+    savePersistedUsers();
+    io.emit('users:synced_all', serverUsersStore);
+    return res.json({ success: true, user: serverUsersStore[lowerKey], total: Object.keys(serverUsersStore).length });
+  }
+
+  return res.status(400).json({ success: false, error: 'Invalid username or user data provided.' });
+});
+
+// Bulk sync endpoint
 app.post('/api/users/sync', (req, res) => {
-  const { users } = req.body;
+  const { users, user } = req.body;
+  let updated = false;
+
   if (users && typeof users === 'object') {
     Object.entries(users).forEach(([key, rec]) => {
-      if (rec) {
-        serverUsersStore[key.toLowerCase()] = { ...(serverUsersStore[key.toLowerCase()] || {}), ...(rec as Record<string, any>) };
+      if (rec && typeof rec === 'object') {
+        const lowerKey = key.toLowerCase();
+        serverUsersStore[lowerKey] = {
+          ...(serverUsersStore[lowerKey] || {}),
+          ...(rec as Record<string, any>),
+          username: (rec as any).username || key,
+        };
+        updated = true;
       }
     });
+  }
+
+  if (user && user.username) {
+    const lowerKey = user.username.toLowerCase();
+    serverUsersStore[lowerKey] = {
+      ...(serverUsersStore[lowerKey] || {}),
+      ...user,
+      username: user.username,
+    };
+    updated = true;
+  }
+
+  if (updated) {
+    savePersistedUsers();
     io.emit('users:synced_all', serverUsersStore);
   }
+
   res.json({ success: true, count: Object.keys(serverUsersStore).length });
+});
+
+// User deletion endpoint
+app.delete('/api/users/:username', (req, res) => {
+  const username = (req.params.username || '').toLowerCase();
+  if (username === 'pebblesthepenguinishaany83') {
+    return res.status(403).json({ success: false, error: 'Cannot delete primary admin account' });
+  }
+
+  if (serverUsersStore[username]) {
+    delete serverUsersStore[username];
+    savePersistedUsers();
+    io.emit('users:synced_all', serverUsersStore);
+    return res.json({ success: true, count: Object.keys(serverUsersStore).length });
+  }
+
+  return res.status(404).json({ success: false, error: 'User account not found' });
 });
 
 // Serve frontend via Vite in dev mode or static files in production
