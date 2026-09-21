@@ -59,12 +59,14 @@ export interface StoreItem {
   name: string;
   description: string;
   price: number;
-  category: 'vip' | 'frame' | 'booster' | 'title' | 'mystery';
+  category: 'vip' | 'frame' | 'booster' | 'title' | 'mystery' | 'snack';
   icon: string;
   vipTier?: 'Gold' | 'Platinum' | 'Diamond';
   frameClass?: string;
   titleBadge?: string;
   popular?: boolean;
+  snackHearts?: number;
+  snackJoyMessage?: string;
 }
 
 export interface GameFeedback {

@@ -231,6 +231,178 @@ app.delete('/api/users/:username', (req, res) => {
   return res.status(404).json({ success: false, error: 'User account not found' });
 });
 
+// --- Cloud Run Authoritative Endpoints for Coins & VIP ---
+
+// Get specific user coins and VIP info
+app.get('/api/users/:username/status', (req, res) => {
+  const username = (req.params.username || '').toLowerCase();
+  const record = serverUsersStore[username];
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+  res.json({
+    success: true,
+    username,
+    points: typeof record.points === 'number' ? record.points : 10,
+    isVip: !!record.isVip,
+    vipLevel: record.vipLevel || null,
+    vipGrantedAt: record.vipGrantedAt || null,
+  });
+});
+
+// Update user coins (add, deduct, set)
+app.post('/api/users/:username/coins', (req, res) => {
+  const username = (req.params.username || '').toLowerCase();
+  const { amount, operation = 'add', reason } = req.body;
+  const numAmount = Number(amount);
+
+  if (isNaN(numAmount)) {
+    return res.status(400).json({ success: false, error: 'Invalid amount provided.' });
+  }
+
+  // Auto-create or get user record
+  if (!serverUsersStore[username]) {
+    serverUsersStore[username] = {
+      username,
+      points: 10,
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+  }
+
+  const record = serverUsersStore[username];
+  const currentPoints = typeof record.points === 'number' ? record.points : 10;
+  let newPoints = currentPoints;
+
+  if (operation === 'add') {
+    newPoints = currentPoints + Math.max(0, numAmount);
+  } else if (operation === 'deduct') {
+    if (currentPoints < numAmount) {
+      return res.status(400).json({
+        success: false,
+        error: `Insufficient coins. Current balance: ${currentPoints}, required: ${numAmount}`,
+        points: currentPoints,
+      });
+    }
+    newPoints = Math.max(0, currentPoints - numAmount);
+  } else if (operation === 'set') {
+    newPoints = Math.max(0, numAmount);
+  }
+
+  record.points = newPoints;
+  savePersistedUsers();
+
+  // Real-time broadcast
+  io.emit('user:coins_updated', {
+    username,
+    points: newPoints,
+    operation,
+    amount: numAmount,
+    reason: reason || 'balance_update',
+  });
+  io.emit('users:synced_all', serverUsersStore);
+
+  return res.json({
+    success: true,
+    username,
+    points: newPoints,
+    operation,
+    amount: numAmount,
+  });
+});
+
+// Update user VIP status and tier
+app.post('/api/users/:username/vip', (req, res) => {
+  const username = (req.params.username || '').toLowerCase();
+  const { isVip, vipLevel, vipGrantedAt } = req.body;
+
+  if (!serverUsersStore[username]) {
+    serverUsersStore[username] = {
+      username,
+      points: 10,
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+  }
+
+  const record = serverUsersStore[username];
+  record.isVip = !!isVip;
+  if (isVip) {
+    record.vipLevel = vipLevel || 'Gold';
+    record.vipGrantedAt = vipGrantedAt || new Date().toISOString();
+  } else {
+    delete record.vipLevel;
+    delete record.vipGrantedAt;
+  }
+
+  savePersistedUsers();
+
+  io.emit('user:vip_updated', {
+    username,
+    isVip: record.isVip,
+    vipLevel: record.vipLevel || null,
+    vipGrantedAt: record.vipGrantedAt || null,
+  });
+  io.emit('users:synced_all', serverUsersStore);
+
+  return res.json({
+    success: true,
+    username,
+    isVip: record.isVip,
+    vipLevel: record.vipLevel,
+  });
+});
+
+// Mass coins airdrop to all accounts
+app.post('/api/users/mass-coins', (req, res) => {
+  const { amount, note } = req.body;
+  const numAmount = Number(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({ success: false, error: 'Invalid mass coin amount' });
+  }
+
+  let count = 0;
+  Object.keys(serverUsersStore).forEach((key) => {
+    const record = serverUsersStore[key];
+    const current = typeof record.points === 'number' ? record.points : 10;
+    record.points = current + numAmount;
+    count++;
+  });
+
+  savePersistedUsers();
+
+  io.emit('users:mass_coins_granted', {
+    amount: numAmount,
+    note: note || 'Admin bonus',
+    timestamp: new Date().toISOString(),
+  });
+  io.emit('users:synced_all', serverUsersStore);
+
+  return res.json({ success: true, count, amount: numAmount });
+});
+
+// Mass promote all users to VIP
+app.post('/api/users/promote-all-vip', (req, res) => {
+  const { vipLevel = 'Gold' } = req.body;
+  const now = new Date().toISOString();
+  let count = 0;
+
+  Object.keys(serverUsersStore).forEach((key) => {
+    const record = serverUsersStore[key];
+    record.isVip = true;
+    record.vipLevel = vipLevel;
+    if (!record.vipGrantedAt) {
+      record.vipGrantedAt = now;
+    }
+    count++;
+  });
+
+  savePersistedUsers();
+  io.emit('users:synced_all', serverUsersStore);
+
+  return res.json({ success: true, count, vipLevel });
+});
+
 // Serve frontend via Vite in dev mode or static files in production
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {

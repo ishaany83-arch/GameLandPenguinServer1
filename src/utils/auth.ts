@@ -1,4 +1,14 @@
-import { emitSocketUsersSync, emitSocketUserRegister, fetchServerUsersSync, BACKEND_URL, getEffectiveBackendUrl } from './socketClient';
+import {
+  emitSocketUsersSync,
+  emitSocketUserRegister,
+  fetchServerUsersSync,
+  BACKEND_URL,
+  getEffectiveBackendUrl,
+  cloudRunUpdateCoins,
+  cloudRunUpdateVip,
+  cloudRunMassCoins,
+  cloudRunPromoteAllVip,
+} from './socketClient';
 
 export interface MysteryGiftItem {
   id: string;
@@ -44,7 +54,84 @@ export interface UserAccount {
   purchasedItemIds?: string[];
   unlockedTitles?: string[];
   pendingVipPass?: PendingVipPass;
+  snacksInventory?: Record<string, number>;
+  penguinHappiness?: number;
+  penguinFeedCount?: number;
 }
+
+export interface PenguinSnackItem {
+  id: string;
+  name: string;
+  icon: string;
+  price: number;
+  description: string;
+  joyMessage: string;
+  hearts: number;
+  tag: string;
+}
+
+export const PENGUIN_SNACKS: PenguinSnackItem[] = [
+  {
+    id: 'store-snack-krill',
+    name: 'Crispy Arctic Krill 🦐',
+    icon: '🦐',
+    price: 3,
+    description: "Crunchy deep-sea polar krill. Pebbles' go-to everyday snack!",
+    joyMessage: "Crunch crunch! Salty and crispy, Pebbles is doing a happy waddle!",
+    hearts: 2,
+    tag: 'Favorite',
+  },
+  {
+    id: 'store-snack-sardine',
+    name: 'Glacier Sardine Skewer 🐟',
+    icon: '🐟',
+    price: 5,
+    description: "Fresh flash-frozen glacier sardine, packed with raw gaming energy!",
+    joyMessage: "Gulp! Fresh glacier fish gives Pebbles maximum arcade focus!",
+    hearts: 3,
+    tag: 'Energy',
+  },
+  {
+    id: 'store-snack-icecream',
+    name: 'Polar Pop Ice Cream 🍦',
+    icon: '🍦',
+    price: 6,
+    description: "Chilled blueberry-swirl arctic soft-serve ice cream cone.",
+    joyMessage: "Brain freeze! So sweet, icy cool, and refreshing!",
+    hearts: 3,
+    tag: 'Sweet Treat',
+  },
+  {
+    id: 'store-snack-shrimp',
+    name: 'Bioluminescent Shrimp 🦐✨',
+    icon: '🦐✨',
+    price: 8,
+    description: "Glowing neon deep-water shrimp that makes Pebbles sparkle!",
+    joyMessage: "Sparkle blast! Pebbles' belly is glowing with magical arctic light!",
+    hearts: 4,
+    tag: 'Magical',
+  },
+  {
+    id: 'store-snack-snowcone',
+    name: 'Rainbow Glacier Snow Cone 🍧',
+    icon: '🍧',
+    price: 10,
+    description: "Shaved polar snow drizzled with five tropical fruit syrups!",
+    joyMessage: "YUMMM! An explosion of rainbow flavors! Pebbles is dancing!",
+    hearts: 5,
+    tag: 'Deluxe',
+  },
+  {
+    id: 'store-snack-crab',
+    name: 'Royal King Crab Feast 🦀',
+    icon: '🦀',
+    price: 15,
+    description: "Steaming king crab leg feast fit for an Arctic emperor!",
+    joyMessage: "ROYAL BANQUET! Pebbles bows down in ultimate penguin gratitude! 👑",
+    hearts: 6,
+    tag: 'Feast',
+  },
+];
 
 const USERS_KEY = 'gameland_users_db_v1';
 const SESSION_KEY = 'gameland_active_session_v1';
@@ -149,6 +236,9 @@ type StoredUserRecord = {
   purchasedItemIds?: string[];
   unlockedTitles?: string[];
   pendingVipPass?: PendingVipPass;
+  snacksInventory?: Record<string, number>;
+  penguinHappiness?: number;
+  penguinFeedCount?: number;
 };
 
 const DEFAULT_USERS: Record<string, StoredUserRecord> = {
@@ -534,6 +624,9 @@ export function loginAccount(usernameInput: string, passwordInput: string): { su
     hasPenguinBadge: record.hasPenguinBadge || (record.loginStreak ? record.loginStreak >= 2 : false),
     mysteryGifts: record.mysteryGifts || [],
     activeProfileFrame: record.activeProfileFrame,
+    snacksInventory: record.snacksInventory || {},
+    penguinHappiness: record.penguinHappiness ?? 85,
+    penguinFeedCount: record.penguinFeedCount ?? 0,
   };
 
   setCurrentSessionUser(user);
@@ -570,6 +663,9 @@ export function getAllUserRecords(): (UserAccount & { passwordHash: string })[] 
     hasPenguinBadge: record.hasPenguinBadge || (record.loginStreak ? record.loginStreak >= 2 : false),
     mysteryGifts: record.mysteryGifts || [],
     activeProfileFrame: record.activeProfileFrame,
+    snacksInventory: record.snacksInventory || {},
+    penguinHappiness: record.penguinHappiness ?? 85,
+    penguinFeedCount: record.penguinFeedCount ?? 0,
   }));
 }
 
@@ -588,6 +684,9 @@ export function toggleUserVipStatus(username: string, defaultLevel: 'Gold' | 'Di
     delete users[key].vipGrantedAt;
   }
   saveUsers(users);
+
+  // Sync VIP change directly to Google Cloud Run backend
+  cloudRunUpdateVip(key, nextVip, nextVip ? defaultLevel : undefined);
 
   const session = getCurrentSessionUser();
   if (session && session.username.toLowerCase() === key) {
@@ -614,6 +713,9 @@ export function setUserVipLevel(username: string, level: 'Gold' | 'Diamond' | 'P
   }
   saveUsers(users);
 
+  // Sync VIP tier directly to Google Cloud Run backend
+  cloudRunUpdateVip(key, true, level);
+
   const session = getCurrentSessionUser();
   if (session && session.username.toLowerCase() === key) {
     const updatedSession: UserAccount = {
@@ -637,6 +739,9 @@ export function promoteAllUsersToVip(level: 'Gold' | 'Diamond' | 'Platinum' | 'V
     }
   });
   saveUsers(users);
+
+  // Sync mass VIP status directly to Google Cloud Run backend
+  cloudRunPromoteAllVip(level);
 
   const session = getCurrentSessionUser();
   if (session) {
@@ -1275,6 +1380,9 @@ export function awardGamePoints(
       record.points = totalPoints;
       saveUsers(users);
 
+      // Persist coins to Google Cloud Run authoritative backend
+      cloudRunUpdateCoins(key, earned, 'add', 'game_reward');
+
       try {
         localStorage.setItem(storageKey, (alreadyEarnedToday + earned).toString());
       } catch (e) {
@@ -1460,7 +1568,7 @@ export function purchaseStoreItem(
     id: string;
     name: string;
     price: number;
-    category: 'vip' | 'frame' | 'booster' | 'title' | 'mystery';
+    category: 'vip' | 'frame' | 'booster' | 'title' | 'mystery' | 'snack';
     vipTier?: 'Gold' | 'Platinum' | 'Diamond';
     frameClass?: string;
     titleBadge?: string;
@@ -1503,6 +1611,9 @@ export function purchaseStoreItem(
       purchased.push(item.id);
     }
     record.purchasedItemIds = purchased;
+
+    // Deduct coins on Google Cloud Run authoritative backend
+    cloudRunUpdateCoins(key, item.price, 'deduct', `store_purchase_${item.id}`);
 
     // Apply Specific Category Benefits
     let successMsg = `Successfully purchased "${item.name}" for 🪙 ${item.price} PTS!`;
@@ -1566,6 +1677,11 @@ export function purchaseStoreItem(
       record.points = (record.points || 0) + bonusGain;
       newPoints = record.points;
       successMsg = `⚡ Activated "${item.name}"! Bonus windfall 🪙 +${bonusGain} PTS credited to balance!`;
+    } else if (item.category === 'snack') {
+      const inv = { ...(record.snacksInventory || {}) };
+      inv[item.id] = (inv[item.id] || 0) + 1;
+      record.snacksInventory = inv;
+      successMsg = `🐟 Packed 1x "${item.name}" into your Snack Bag! Click Pebbles on your screen to feed him!`;
     }
 
     saveUsers(users);
@@ -1580,9 +1696,16 @@ export function purchaseStoreItem(
       unlockedTitles: record.unlockedTitles,
       mysteryGifts: record.mysteryGifts,
       pendingVipPass: record.pendingVipPass,
+      snacksInventory: record.snacksInventory,
+      penguinHappiness: record.penguinHappiness,
+      penguinFeedCount: record.penguinFeedCount,
     };
 
     setCurrentSessionUser(updatedSessionUser);
+
+    window.dispatchEvent(new CustomEvent('gameland_snacks_updated', {
+      detail: { inventory: record.snacksInventory }
+    }));
 
     return {
       success: true,
@@ -1600,7 +1723,20 @@ export function purchaseStoreItem(
   }
 
   let guestMsg = `Purchased "${item.name}" for 🪙 ${item.price} PTS!`;
-  if (item.category === 'vip' && item.vipTier) {
+  if (item.category === 'snack') {
+    try {
+      const raw = localStorage.getItem('gameland_guest_snacks_inventory_v1');
+      const inv = raw ? JSON.parse(raw) : {};
+      inv[item.id] = (inv[item.id] || 0) + 1;
+      localStorage.setItem('gameland_guest_snacks_inventory_v1', JSON.stringify(inv));
+      window.dispatchEvent(new CustomEvent('gameland_snacks_updated', {
+        detail: { inventory: inv }
+      }));
+    } catch (e) {
+      console.error('Failed to save guest snack', e);
+    }
+    guestMsg = `🐟 Packed 1x "${item.name}"! Click Pebbles on your screen to feed him!`;
+  } else if (item.category === 'vip' && item.vipTier) {
     const guestPending: PendingVipPass = {
       id: item.id,
       name: item.name,
@@ -1622,6 +1758,196 @@ export function purchaseStoreItem(
     message: guestMsg,
     newPoints,
     user: null,
+  };
+}
+
+export function getUserSnacksInventory(user?: UserAccount | null): Record<string, number> {
+  if (user) {
+    const users = getStoredUsers();
+    const record = users[user.username.toLowerCase()];
+    return record?.snacksInventory || user.snacksInventory || {};
+  }
+  try {
+    const raw = localStorage.getItem('gameland_guest_snacks_inventory_v1');
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getPenguinStats(user?: UserAccount | null): { happiness: number; totalFed: number } {
+  if (user) {
+    const users = getStoredUsers();
+    const record = users[user.username.toLowerCase()];
+    return {
+      happiness: record?.penguinHappiness ?? user.penguinHappiness ?? 85,
+      totalFed: record?.penguinFeedCount ?? user.penguinFeedCount ?? 0,
+    };
+  }
+  try {
+    const hap = parseInt(localStorage.getItem('gameland_guest_penguin_happiness') || '85', 10);
+    const fed = parseInt(localStorage.getItem('gameland_guest_penguin_feed_count') || '0', 10);
+    return { happiness: hap, totalFed: fed };
+  } catch {
+    return { happiness: 85, totalFed: 0 };
+  }
+}
+
+export function feedPenguinSnack(
+  user: UserAccount | null,
+  snackId: string
+): {
+  success: boolean;
+  message: string;
+  user: UserAccount | null;
+  remaining: number;
+  snackItem?: PenguinSnackItem;
+  happiness: number;
+  totalFed: number;
+} {
+  const snack = PENGUIN_SNACKS.find((s) => s.id === snackId);
+  if (!snack) {
+    return { success: false, message: 'Unknown snack item.', user, remaining: 0, happiness: 85, totalFed: 0 };
+  }
+
+  if (user) {
+    const users = getStoredUsers();
+    const key = user.username.toLowerCase();
+    const record = users[key];
+    if (!record) {
+      return { success: false, message: 'User account record not found.', user, remaining: 0, happiness: 85, totalFed: 0 };
+    }
+
+    const inv = { ...(record.snacksInventory || {}) };
+    const currentCount = inv[snackId] || 0;
+    if (currentCount <= 0) {
+      return {
+        success: false,
+        message: `You don't have any "${snack.name}" to feed Pebbles. Visit the Store to grab some!`,
+        user,
+        remaining: 0,
+        happiness: record.penguinHappiness ?? 85,
+        totalFed: record.penguinFeedCount ?? 0,
+      };
+    }
+
+    const remaining = currentCount - 1;
+    if (remaining <= 0) {
+      delete inv[snackId];
+    } else {
+      inv[snackId] = remaining;
+    }
+    record.snacksInventory = inv;
+    const newTotalFed = (record.penguinFeedCount || 0) + 1;
+    record.penguinFeedCount = newTotalFed;
+    const newHappiness = Math.min(100, (record.penguinHappiness ?? 85) + snack.hearts * 4);
+    record.penguinHappiness = newHappiness;
+
+    saveUsers(users);
+
+    const updatedUser: UserAccount = {
+      ...user,
+      snacksInventory: record.snacksInventory,
+      penguinHappiness: newHappiness,
+      penguinFeedCount: newTotalFed,
+    };
+    setCurrentSessionUser(updatedUser);
+
+    window.dispatchEvent(
+      new CustomEvent('gameland_penguin_fed', {
+        detail: {
+          snack,
+          happiness: newHappiness,
+          totalFed: newTotalFed,
+          remaining,
+          username: user.username,
+        },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('gameland_snacks_updated', {
+        detail: { inventory: inv },
+      })
+    );
+
+    return {
+      success: true,
+      message: snack.joyMessage,
+      user: updatedUser,
+      remaining,
+      snackItem: snack,
+      happiness: newHappiness,
+      totalFed: newTotalFed,
+    };
+  }
+
+  // Guest feeding logic
+  let guestInv: Record<string, number> = {};
+  let happiness = 85;
+  let totalFed = 0;
+  try {
+    const raw = localStorage.getItem('gameland_guest_snacks_inventory_v1');
+    guestInv = raw ? JSON.parse(raw) : {};
+    happiness = parseInt(localStorage.getItem('gameland_guest_penguin_happiness') || '85', 10);
+    totalFed = parseInt(localStorage.getItem('gameland_guest_penguin_feed_count') || '0', 10);
+  } catch (e) {
+    console.error('Failed to parse guest snacks', e);
+  }
+
+  const currentCount = guestInv[snackId] || 0;
+  if (currentCount <= 0) {
+    return {
+      success: false,
+      message: `You don't have any "${snack.name}" to feed Pebbles. Visit the Store to grab some!`,
+      user: null,
+      remaining: 0,
+      happiness,
+      totalFed,
+    };
+  }
+
+  const remaining = currentCount - 1;
+  if (remaining <= 0) {
+    delete guestInv[snackId];
+  } else {
+    guestInv[snackId] = remaining;
+  }
+  totalFed += 1;
+  happiness = Math.min(100, happiness + snack.hearts * 4);
+
+  try {
+    localStorage.setItem('gameland_guest_snacks_inventory_v1', JSON.stringify(guestInv));
+    localStorage.setItem('gameland_guest_penguin_happiness', happiness.toString());
+    localStorage.setItem('gameland_guest_penguin_feed_count', totalFed.toString());
+  } catch (e) {
+    console.error('Failed to save guest snack feed', e);
+  }
+
+  window.dispatchEvent(
+    new CustomEvent('gameland_penguin_fed', {
+      detail: {
+        snack,
+        happiness,
+        totalFed,
+        remaining,
+        username: 'Guest',
+      },
+    })
+  );
+  window.dispatchEvent(
+    new CustomEvent('gameland_snacks_updated', {
+      detail: { inventory: guestInv },
+    })
+  );
+
+  return {
+    success: true,
+    message: snack.joyMessage,
+    user: null,
+    remaining,
+    snackItem: snack,
+    happiness,
+    totalFed,
   };
 }
 
@@ -1791,6 +2117,9 @@ export function grantAdminPointsToUser(
   record.points = newTotal;
   saveUsers(users);
 
+  // Sync granted coins to Google Cloud Run authoritative backend
+  cloudRunUpdateCoins(key, amount, 'add', 'admin_grant');
+
   const session = getCurrentSessionUser();
   let updatedSessionUser: UserAccount | null = null;
   if (session && session.username.toLowerCase() === key) {
@@ -1825,6 +2154,9 @@ export function setUserPointsBalance(username: string, newPoints: number): boole
   record.points = Math.max(0, newPoints);
   saveUsers(users);
 
+  // Set coins on Google Cloud Run authoritative backend
+  cloudRunUpdateCoins(key, Math.max(0, newPoints), 'set', 'admin_set_balance');
+
   const session = getCurrentSessionUser();
   if (session && session.username.toLowerCase() === key) {
     setCurrentSessionUser({
@@ -1845,6 +2177,9 @@ export function grantMassPointBonus(amount: number): number {
     count++;
   });
   saveUsers(users);
+
+  // Airdrop mass coins across all accounts on Google Cloud Run authoritative backend
+  cloudRunMassCoins(amount, 'admin_mass_bonus');
 
   const session = getCurrentSessionUser();
   if (session) {
@@ -1912,6 +2247,9 @@ export function adminApproveVipOrderByUsername(targetUsername: string): boolean 
 
   saveUsers(users);
 
+  // Sync approved VIP tier to Google Cloud Run backend
+  cloudRunUpdateVip(key, true, pending.vipTier);
+
   const session = getCurrentSessionUser();
   if (session && session.username.toLowerCase() === key) {
     setCurrentSessionUser({
@@ -1955,6 +2293,9 @@ export function adminRejectVipOrderByUsername(targetUsername: string): boolean {
   delete record.pendingVipPass;
 
   saveUsers(users);
+
+  // Refund coins on Google Cloud Run backend
+  cloudRunUpdateCoins(key, pending.price, 'add', 'vip_order_refund');
 
   const session = getCurrentSessionUser();
   if (session && session.username.toLowerCase() === key) {

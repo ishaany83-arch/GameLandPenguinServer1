@@ -72,6 +72,76 @@ if (typeof window !== 'undefined') {
         }
       }
     });
+
+    // Real-time coin updates from Cloud Run
+    socket.on('user:coins_updated', (data: { username: string; points: number; operation: string; amount: number; reason?: string }) => {
+      if (data && data.username) {
+        try {
+          const lowerKey = data.username.toLowerCase();
+          const raw = localStorage.getItem(USERS_STORAGE_KEY);
+          const existing = raw ? JSON.parse(raw) : {};
+          if (existing[lowerKey]) {
+            existing[lowerKey].points = data.points;
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(existing));
+          }
+
+          // Check if it impacts current session user
+          const sessionRaw = localStorage.getItem('gameland_current_session_user_v1');
+          if (sessionRaw) {
+            const session = JSON.parse(sessionRaw);
+            if (session && session.username && session.username.toLowerCase() === lowerKey) {
+              session.points = data.points;
+              localStorage.setItem('gameland_current_session_user_v1', JSON.stringify(session));
+              window.dispatchEvent(new CustomEvent('gameland_session_coins_updated', { detail: data }));
+            }
+          }
+
+          window.dispatchEvent(new CustomEvent('gameland_coins_updated', { detail: data }));
+          window.dispatchEvent(new CustomEvent('gameland_users_updated', { detail: existing }));
+        } catch (err) {
+          console.error('Error handling user:coins_updated socket event', err);
+        }
+      }
+    });
+
+    // Real-time VIP updates from Cloud Run
+    socket.on('user:vip_updated', (data: { username: string; isVip: boolean; vipLevel?: string; vipGrantedAt?: string }) => {
+      if (data && data.username) {
+        try {
+          const lowerKey = data.username.toLowerCase();
+          const raw = localStorage.getItem(USERS_STORAGE_KEY);
+          const existing = raw ? JSON.parse(raw) : {};
+          if (existing[lowerKey]) {
+            existing[lowerKey].isVip = data.isVip;
+            existing[lowerKey].vipLevel = data.vipLevel;
+            existing[lowerKey].vipGrantedAt = data.vipGrantedAt;
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(existing));
+          }
+
+          const sessionRaw = localStorage.getItem('gameland_current_session_user_v1');
+          if (sessionRaw) {
+            const session = JSON.parse(sessionRaw);
+            if (session && session.username && session.username.toLowerCase() === lowerKey) {
+              session.isVip = data.isVip;
+              session.vipLevel = data.vipLevel;
+              session.vipGrantedAt = data.vipGrantedAt;
+              localStorage.setItem('gameland_current_session_user_v1', JSON.stringify(session));
+              window.dispatchEvent(new CustomEvent('gameland_session_vip_updated', { detail: data }));
+            }
+          }
+
+          window.dispatchEvent(new CustomEvent('gameland_vip_updated', { detail: data }));
+          window.dispatchEvent(new CustomEvent('gameland_users_updated', { detail: existing }));
+        } catch (err) {
+          console.error('Error handling user:vip_updated socket event', err);
+        }
+      }
+    });
+
+    // Mass coins bonus from Cloud Run admin
+    socket.on('users:mass_coins_granted', (data: { amount: number; note?: string }) => {
+      window.dispatchEvent(new CustomEvent('gameland_mass_coins_granted', { detail: data }));
+    });
   } catch (err) {
     console.warn('Socket initialization standby:', err);
   }
@@ -150,3 +220,90 @@ export async function fetchServerUsersSync(): Promise<Record<string, any> | null
   }
   return null;
 }
+
+// Cloud Run Authoritative Coin Operations
+export async function cloudRunUpdateCoins(
+  username: string,
+  amount: number,
+  operation: 'add' | 'deduct' | 'set' = 'add',
+  reason?: string
+): Promise<{ success: boolean; points?: number; error?: string }> {
+  if (typeof window === 'undefined') return { success: false, error: 'No window context' };
+  const backend = getEffectiveBackendUrl();
+  try {
+    const res = await fetch(`${backend}/api/users/${encodeURIComponent(username.toLowerCase())}/coins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, operation, reason }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    console.warn('Cloud Run coin update standby:', err.message || err);
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+// Cloud Run Authoritative VIP Operations
+export async function cloudRunUpdateVip(
+  username: string,
+  isVip: boolean,
+  vipLevel?: string
+): Promise<{ success: boolean; user?: any; error?: string }> {
+  if (typeof window === 'undefined') return { success: false, error: 'No window context' };
+  const backend = getEffectiveBackendUrl();
+  try {
+    const res = await fetch(`${backend}/api/users/${encodeURIComponent(username.toLowerCase())}/vip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isVip, vipLevel, vipGrantedAt: new Date().toISOString() }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    console.warn('Cloud Run VIP update standby:', err.message || err);
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+// Cloud Run Authoritative Mass Coins Airdrop
+export async function cloudRunMassCoins(
+  amount: number,
+  note?: string
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  if (typeof window === 'undefined') return { success: false, error: 'No window context' };
+  const backend = getEffectiveBackendUrl();
+  try {
+    const res = await fetch(`${backend}/api/users/mass-coins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, note }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    console.warn('Cloud Run mass coins standby:', err.message || err);
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+
+// Cloud Run Authoritative Promote All VIP
+export async function cloudRunPromoteAllVip(
+  vipLevel: string = 'Gold'
+): Promise<{ success: boolean; count?: number; error?: string }> {
+  if (typeof window === 'undefined') return { success: false, error: 'No window context' };
+  const backend = getEffectiveBackendUrl();
+  try {
+    const res = await fetch(`${backend}/api/users/promote-all-vip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vipLevel }),
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    console.warn('Cloud Run mass VIP standby:', err.message || err);
+    return { success: false, error: err.message || 'Network error' };
+  }
+}
+

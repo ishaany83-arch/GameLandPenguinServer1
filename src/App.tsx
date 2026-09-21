@@ -36,9 +36,7 @@ import { getCurrentSessionUser, logoutAccount, processDailyLoginStreak, UserAcco
 import { recordFavoritesChange, evaluateTrophies } from './utils/trophies';
 import { PenguinMascot } from './components/PenguinMascot';
 import { SnowfallEffect } from './components/SnowfallEffect';
-import { BackgroundMusicWidget } from './components/BackgroundMusicWidget';
-import { PebblesJokesWidget } from './components/PebblesJokesWidget';
-import { PebblesSaysWidget } from './components/PebblesSaysWidget';
+import { PebblesCornerHub } from './components/PebblesCornerHub';
 import {
   Gamepad2,
   Sparkles,
@@ -142,8 +140,47 @@ export default function App() {
       }
     };
 
+    // Real-time Cloud Run Coins & VIP listeners
+    const handleSessionCoinsUpdated = () => {
+      const updatedUser = getCurrentSessionUser();
+      if (updatedUser) {
+        setCurrentUser(updatedUser);
+      }
+    };
+    const handleSessionVipUpdated = () => {
+      const updatedUser = getCurrentSessionUser();
+      if (updatedUser) {
+        setCurrentUser(updatedUser);
+      }
+    };
+    const handleMassCoinsGranted = (e: any) => {
+      const updatedUser = getCurrentSessionUser();
+      if (updatedUser) {
+        setCurrentUser(updatedUser);
+      }
+      setPointsBanner({
+        earned: e.detail?.amount || 50,
+        total: updatedUser?.points || 0,
+        multiplier: 1,
+        title: e.detail?.note ? `Cloud Run Bonus: ${e.detail.note}` : 'Cloud Run Mass Airdrop Bonus!',
+      });
+    };
+
+    window.addEventListener('gameland_session_coins_updated', handleSessionCoinsUpdated);
+    window.addEventListener('gameland_session_vip_updated', handleSessionVipUpdated);
+    window.addEventListener('gameland_mass_coins_granted', handleMassCoinsGranted);
+
+    const handleOpenStoreModal = () => setIsStoreModalOpen(true);
+    window.addEventListener('gameland_open_store_modal', handleOpenStoreModal);
+
     window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+      window.removeEventListener('gameland_session_coins_updated', handleSessionCoinsUpdated);
+      window.removeEventListener('gameland_session_vip_updated', handleSessionVipUpdated);
+      window.removeEventListener('gameland_mass_coins_granted', handleMassCoinsGranted);
+      window.removeEventListener('gameland_open_store_modal', handleOpenStoreModal);
+    };
   }, []);
 
   const handleSignOut = () => {
@@ -428,11 +465,19 @@ export default function App() {
                       </div>
 
                       {/* Mascot Banner Card */}
-                      <div className="shrink-0 bg-slate-950/80 border border-cyan-500/30 p-4 rounded-2xl shadow-xl backdrop-blur-md hidden sm:flex items-center gap-3 max-w-xs">
-                        <PenguinMascot pose="gaming" size="lg" interactive showSpeechBubble={false} />
+                      <div className="shrink-0 bg-slate-950/80 border border-cyan-500/30 p-4 rounded-2xl shadow-xl backdrop-blur-md hidden sm:flex items-center gap-3 max-w-sm">
+                        <PenguinMascot
+                          pose="gaming"
+                          size="lg"
+                          interactive
+                          showSpeechBubble={false}
+                          currentUser={currentUser}
+                          onOpenStore={() => setIsStoreModalOpen(true)}
+                          showFeedControls
+                        />
                         <div>
                           <p className="text-xs font-bold text-cyan-300">Pebbles The Penguin</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">"100+ games tested & unblocked for your playing pleasure! 🧊"</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Click Pebbles to feed snacks from the Store or inspect happiness! 🐟</p>
                         </div>
                       </div>
                     </div>
@@ -788,27 +833,18 @@ export default function App() {
         onOpenStore={() => setIsStoreModalOpen(true)}
       />
 
-      {/* Bottom Left: Pebbles Says Widget */}
-      <PebblesSaysWidget
+      {/* Unified Bottom-Right Sight: Pebbles Says + Pebbles Jokes + Background Music Player */}
+      <PebblesCornerHub
+        currentUser={currentUser}
+        onUserUpdated={(updated) => setCurrentUser(updated)}
         onOpenStore={() => setIsStoreModalOpen(true)}
         onOpenPanicModal={() => setIsPanicModalOpen(true)}
-      />
-
-      {/* Bottom Middle: Floating Background Music Synthesizer Widget */}
-      <BackgroundMusicWidget
-        currentUser={currentUser}
         onOpenVipModal={(trackTitle, requiredTier) =>
           setVipLockedModalData({
             itemName: trackTitle ? `"${trackTitle}" Track` : 'VIP Exclusive Music Track',
             requiredTier: requiredTier || 'Gold',
           })
         }
-      />
-
-      {/* Bottom Right: Pebbles Jokes Widget */}
-      <PebblesJokesWidget
-        currentUser={currentUser}
-        onUserUpdated={(updated) => setCurrentUser(updated)}
       />
 
     </div>

@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Loader2,
   CheckCircle2,
+  Fish,
 } from 'lucide-react';
 import { StoreItem } from '../types';
 import {
@@ -28,6 +29,7 @@ import {
   getUserPendingVipPass,
   approvePendingVipPass,
   cancelPendingVipPass,
+  getUserSnacksInventory,
 } from '../utils/auth';
 
 interface StoreModalProps {
@@ -273,6 +275,59 @@ const STORE_ITEMS: StoreItem[] = [
     category: 'booster',
     icon: '🎶',
   },
+
+  // VIRTUAL PENGUIN SNACKS
+  {
+    id: 'store-snack-krill',
+    name: 'Crispy Arctic Krill 🦐',
+    description: "Crunchy deep-sea polar krill. Pebbles' favorite everyday snack! Boosts penguin happiness.",
+    price: 3,
+    category: 'snack',
+    icon: '🦐',
+    popular: true,
+  },
+  {
+    id: 'store-snack-sardine',
+    name: 'Glacier Sardine Skewer 🐟',
+    description: 'Flash-frozen glacier sardine packed with raw arcade energy. Makes Pebbles waddle with joy!',
+    price: 5,
+    category: 'snack',
+    icon: '🐟',
+    popular: true,
+  },
+  {
+    id: 'store-snack-icecream',
+    name: 'Polar Pop Ice Cream 🍦',
+    description: "Chilled blueberry-swirl arctic soft-serve ice cream cone! Cools down Pebbles' gaming brain.",
+    price: 6,
+    category: 'snack',
+    icon: '🍦',
+  },
+  {
+    id: 'store-snack-shrimp',
+    name: 'Bioluminescent Shrimp 🦐✨',
+    description: 'Glowing neon deep-water shrimp that makes Pebbles sparkle with magical arctic light!',
+    price: 8,
+    category: 'snack',
+    icon: '🦐✨',
+  },
+  {
+    id: 'store-snack-snowcone',
+    name: 'Rainbow Glacier Snow Cone 🍧',
+    description: 'Shaved polar snow drizzled with five tropical syrups! Big burst of happiness and confetti.',
+    price: 10,
+    category: 'snack',
+    icon: '🍧',
+  },
+  {
+    id: 'store-snack-crab',
+    name: 'Royal King Crab Feast 🦀',
+    description: 'Steaming king crab leg feast fit for an Arctic emperor! Pebbles bows in eternal gratitude.',
+    price: 15,
+    category: 'snack',
+    icon: '🦀',
+    popular: true,
+  },
 ];
 
 export const StoreModal: React.FC<StoreModalProps> = ({
@@ -290,13 +345,16 @@ export const StoreModal: React.FC<StoreModalProps> = ({
 
   const currentPoints = getUserPoints(currentUser);
   const pendingVip = getUserPendingVipPass(currentUser);
+  const userSnacks = getUserSnacksInventory(currentUser);
 
   const filteredItems = STORE_ITEMS.filter((item) => {
     if (selectedCategory === 'all') return true;
     if (selectedCategory === 'vip') return item.category === 'vip';
+    if (selectedCategory === 'snack') return item.category === 'snack';
     if (selectedCategory === 'frame') return item.category === 'frame';
     if (selectedCategory === 'title') return item.category === 'title';
     if (selectedCategory === 'mystery') return item.category === 'mystery';
+    if (selectedCategory === 'booster') return item.category === 'booster';
     return true;
   });
 
@@ -494,6 +552,7 @@ export const StoreModal: React.FC<StoreModalProps> = ({
         <div className="flex items-center gap-1.5 my-3 overflow-x-auto custom-scrollbar pb-1 shrink-0">
           {[
             { id: 'all', label: 'All Items', icon: <Coins className="w-3.5 h-3.5" /> },
+            { id: 'snack', label: 'Penguin Snacks 🐟', icon: <Fish className="w-3.5 h-3.5 text-cyan-400" /> },
             { id: 'vip', label: 'VIP Passes', icon: <Crown className="w-3.5 h-3.5 text-amber-400" /> },
             { id: 'frame', label: 'Profile Frames', icon: <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> },
             { id: 'title', label: 'User Titles', icon: <Award className="w-3.5 h-3.5 text-purple-400" /> },
@@ -518,6 +577,9 @@ export const StoreModal: React.FC<StoreModalProps> = ({
         {/* Store Grid Items */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pr-1 my-1 flex-1">
           {filteredItems.map((item) => {
+            const isSnack = item.category === 'snack';
+            const snackOwnedCount = userSnacks[item.id] || 0;
+
             const isVipOwned =
               item.category === 'vip' &&
               item.vipTier &&
@@ -526,8 +588,9 @@ export const StoreModal: React.FC<StoreModalProps> = ({
             const isItemProcessing = pendingVip && pendingVip.id === item.id;
 
             const isAlreadyPurchased =
-              isVipOwned ||
-              (currentUser?.purchasedItemIds && currentUser.purchasedItemIds.includes(item.id));
+              !isSnack &&
+              (isVipOwned ||
+                (currentUser?.purchasedItemIds && currentUser.purchasedItemIds.includes(item.id)));
 
             const canAfford = currentPoints >= item.price;
 
@@ -537,17 +600,23 @@ export const StoreModal: React.FC<StoreModalProps> = ({
                 className={`p-4 rounded-2xl border transition-all flex flex-col justify-between relative overflow-hidden ${
                   isItemProcessing
                     ? 'bg-amber-950/30 border-amber-500/60'
+                    : isSnack
+                    ? 'bg-gradient-to-br from-cyan-950/30 via-slate-950 to-slate-900 border-cyan-500/30 hover:border-cyan-500/60'
                     : item.popular
                     ? 'bg-gradient-to-br from-amber-950/40 via-slate-950 to-slate-900 border-amber-500/50'
                     : 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
                 }`}
               >
-                {/* Popular Tag */}
-                {item.popular && !isItemProcessing && (
+                {/* Snack Bag Count or Popular Tag */}
+                {isSnack && snackOwnedCount > 0 ? (
+                  <div className="absolute top-0 right-0 bg-cyan-500 text-slate-950 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-bl-xl shadow-md flex items-center gap-1">
+                    <span>In Bag: {snackOwnedCount} 🎒</span>
+                  </div>
+                ) : item.popular && !isItemProcessing ? (
                   <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-950 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-bl-xl shadow-md">
                     Featured
                   </div>
-                )}
+                ) : null}
 
                 {isItemProcessing && (
                   <div className="absolute top-0 right-0 bg-amber-500 text-slate-950 text-[9px] font-black uppercase px-2.5 py-0.5 rounded-bl-xl shadow-md flex items-center gap-1">
@@ -559,7 +628,11 @@ export const StoreModal: React.FC<StoreModalProps> = ({
                 <div>
                   {/* Top Item Info */}
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl shrink-0 shadow-inner">
+                    <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center text-2xl shrink-0 shadow-inner ${
+                      isSnack
+                        ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    }`}>
                       {item.icon}
                     </div>
 
@@ -596,6 +669,22 @@ export const StoreModal: React.FC<StoreModalProps> = ({
                       <Check className="w-3.5 h-3.5" />
                       <span>Unlocked</span>
                     </span>
+                  ) : isSnack ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleBuy(item)}
+                        disabled={!canAfford}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 shadow-sm ${
+                          canAfford
+                            ? 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950 shadow-cyan-500/20 active:scale-95'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700/60 cursor-not-allowed'
+                        }`}
+                      >
+                        <Fish className="w-3.5 h-3.5" />
+                        <span>{canAfford ? (snackOwnedCount > 0 ? 'Buy More (+1)' : 'Buy Snack') : 'Need Points'}</span>
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
