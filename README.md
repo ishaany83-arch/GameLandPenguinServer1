@@ -35,7 +35,7 @@ A responsive, feature-packed online arcade and unblocked gaming portal hosted by
 ### ❄️ Aesthetic & Accessible UI
 - Winter ice theme with togglable animated snowfall particle effect.
 - Fully mobile-responsive layout for desktop, Chromebooks, tablets, and phones.
-- Interactive mascot **Ishaan Y** who tells jokes and reacts to your achievements!
+- Interactive mascot Pebbles who tells jokes and reacts to your achievements!
 
 
 If want more info contact me at both of my emails
