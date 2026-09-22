@@ -23,11 +23,13 @@ import {
 import { 
   getMySavedAccounts, 
   loginAccount, 
+  loginAccountAsync,
   registerAccount, 
   UserAccount,
   hasDeviceUsedTestAccount,
   getTestAccountsList,
-  claimOneTimeTestAccount
+  claimOneTimeTestAccount,
+  syncUsersWithServer
 } from '../utils/auth';
 import { PenguinMascot } from './PenguinMascot';
 import { SnowfallEffect } from './SnowfallEffect';
@@ -60,6 +62,10 @@ export const AuthEntry: React.FC<AuthEntryProps> = ({ onLoginSuccess }) => {
   useEffect(() => {
     refreshAccountsList();
     refreshTestAccounts();
+    syncUsersWithServer().then(() => {
+      refreshAccountsList();
+      refreshTestAccounts();
+    }).catch(() => {});
   }, []);
 
   const refreshAccountsList = () => {
@@ -101,45 +107,43 @@ export const AuthEntry: React.FC<AuthEntryProps> = ({ onLoginSuccess }) => {
     }, 300);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      if (mode === 'signin') {
-        const result = loginAccount(username, password);
-        if (result.success && result.user) {
-          setSuccessMessage(`Welcome back, ${result.user.username}! Launching GameLand...`);
-          setTimeout(() => {
-            onLoginSuccess(result.user!);
-          }, 600);
-        } else {
-          setErrorMessage(result.error || 'Login failed.');
-        }
+    if (mode === 'signin') {
+      const result = await loginAccountAsync(username, password);
+      if (result.success && result.user) {
+        setSuccessMessage(`Welcome back, ${result.user.username}! Launching GameLand...`);
+        setTimeout(() => {
+          onLoginSuccess(result.user!);
+        }, 600);
       } else {
-        // Sign Up Mode
-        if (password !== confirmPassword) {
-          setErrorMessage('Passwords do not match. Please verify your password.');
-          setIsLoading(false);
-          return;
-        }
-
-        const result = registerAccount(username, password, fullName, email);
-        if (result.success && result.user) {
-          const welcomeName = result.user.name || result.user.username;
-          setSuccessMessage(`Account created successfully! Welcome to GameLand, ${welcomeName}.`);
-          refreshAccountsList();
-          setTimeout(() => {
-            onLoginSuccess(result.user!);
-          }, 800);
-        } else {
-          setErrorMessage(result.error || 'Registration failed.');
-        }
+        setErrorMessage(result.error || 'Login failed.');
       }
-      setIsLoading(false);
-    }, 300);
+    } else {
+      // Sign Up Mode
+      if (password !== confirmPassword) {
+        setErrorMessage('Passwords do not match. Please verify your password.');
+        setIsLoading(false);
+        return;
+      }
+
+      const result = registerAccount(username, password, fullName, email);
+      if (result.success && result.user) {
+        const welcomeName = result.user.name || result.user.username;
+        setSuccessMessage(`Account created successfully! Saved permanently in backend database, welcome ${welcomeName}.`);
+        refreshAccountsList();
+        setTimeout(() => {
+          onLoginSuccess(result.user!);
+        }, 800);
+      } else {
+        setErrorMessage(result.error || 'Registration failed.');
+      }
+    }
+    setIsLoading(false);
   };
 
   const handlePresetSelect = (accountUser: string, accountPass: string, autoSubmit = false) => {
@@ -150,8 +154,7 @@ export const AuthEntry: React.FC<AuthEntryProps> = ({ onLoginSuccess }) => {
 
     if (autoSubmit) {
       setIsLoading(true);
-      setTimeout(() => {
-        const result = loginAccount(accountUser, accountPass);
+      loginAccountAsync(accountUser, accountPass).then((result) => {
         if (result.success && result.user) {
           setSuccessMessage(`Logging in as ${result.user.username}...`);
           setTimeout(() => {
@@ -161,7 +164,7 @@ export const AuthEntry: React.FC<AuthEntryProps> = ({ onLoginSuccess }) => {
           setErrorMessage(result.error || 'Preset login failed.');
         }
         setIsLoading(false);
-      }, 200);
+      });
     }
   };
 

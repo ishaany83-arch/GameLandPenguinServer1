@@ -742,16 +742,9 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
     refreshData();
   };
 
-  const handleDeleteUser = (username: string) => {
-    if (confirm(`Are you sure you want to delete user account "${username}"?`)) {
-      if (deleteUserAccount(username)) {
-        setUserMsg(`Deleted user ${username}`);
-      } else {
-        setUserMsg(`Cannot delete primary admin account.`);
-      }
-      refreshData();
-      setTimeout(() => setUserMsg(''), 3000);
-    }
+  const handleDeleteUser = (_username: string) => {
+    setUserMsg(`Account deletion is permanently disabled. All accounts are saved in the backend and can never be deleted.`);
+    setTimeout(() => setUserMsg(''), 3500);
   };
 
   const handleUpdatePassword = (username: string) => {
@@ -2908,13 +2901,12 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
                                         {user.isAdmin ? 'Revoke Admin' : 'Make Admin'}
                                       </button>
 
-                                      <button
-                                        onClick={() => handleDeleteUser(user.username)}
-                                        className="p-1.5 rounded-lg bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-colors"
-                                        title="Delete User"
+                                      <span
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold"
+                                        title="Account is saved permanently in backend and cannot be deleted"
                                       >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                        <ShieldCheck className="w-3 h-3" /> Permanent
+                                      </span>
                                     </>
                                   )}
                                 </div>

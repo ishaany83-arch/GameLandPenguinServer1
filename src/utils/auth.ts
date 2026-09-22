@@ -813,6 +813,7 @@ export function registerAccount(
 
   const now = new Date().toISOString();
   const userRec: StoredUserRecord = {
+    username,
     passwordHash: password,
     name,
     email,
@@ -955,6 +956,22 @@ export function loginAccount(usernameInput: string, passwordInput: string): { su
     passwordHash: record.passwordHash,
   });
   return { success: true, user };
+}
+
+export async function loginAccountAsync(
+  usernameInput: string,
+  passwordInput: string
+): Promise<{ success: boolean; error?: string; user?: UserAccount }> {
+  let result = loginAccount(usernameInput, passwordInput);
+  if (!result.success && result.error?.includes('Account not found')) {
+    try {
+      await syncUsersWithServer();
+      result = loginAccount(usernameInput, passwordInput);
+    } catch {
+      // Backend standby fallback
+    }
+  }
+  return result;
 }
 
 export function logoutAccount() {
@@ -1108,20 +1125,9 @@ export function generateNewVipAccount(level: 'Gold' | 'Diamond' | 'Platinum' | '
   };
 }
 
-export function deleteUserAccount(username: string): boolean {
-  if (username.toLowerCase() === ADMIN_USERNAME.toLowerCase()) {
-    return false; // Protect main admin account from deletion
-  }
-  const users = getStoredUsers();
-  delete users[username.toLowerCase()];
-  saveUsers(users);
-  const backend = getEffectiveBackendUrl();
-  if (typeof window !== 'undefined' && backend) {
-    fetch(`${backend}/api/users/${encodeURIComponent(username.toLowerCase())}`, {
-      method: 'DELETE',
-    }).catch(() => {});
-  }
-  return true;
+export function deleteUserAccount(_username: string): boolean {
+  console.warn('Account deletion is permanently disabled. User accounts are permanent and cannot be deleted.');
+  return false;
 }
 
 export function updateUserPassword(username: string, newPassword: string): boolean {

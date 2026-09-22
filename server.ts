@@ -15,6 +15,9 @@ const io = new SocketIOServer(httpServer, {
 
 const PORT = Number(process.env.PORT) || 3000;
 const USERS_FILE_PATH = path.join(process.cwd(), 'users_registry_data.json');
+const PERMANENT_ARCHIVE_PATH = path.join(process.cwd(), 'users_permanent_archive.json');
+const USERS_BACKUP_PATH = path.join(process.cwd(), 'users_registry_data.backup.json');
+const USERS_LEDGER_PATH = path.join(process.cwd(), 'users_permanent_ledger.jsonl');
 
 let onlineUsersCount = 1;
 
@@ -33,34 +36,65 @@ const serverUsersStore: Record<string, any> = {
   },
 };
 
-// Persistence functions
+// Persistence functions - Multi-layer redundancy to ensure accounts are NEVER deleted or lost
 function loadPersistedUsers() {
+  const fileSources = [USERS_FILE_PATH, PERMANENT_ARCHIVE_PATH, USERS_BACKUP_PATH];
+  let loadedCount = 0;
+
+  fileSources.forEach((filePath) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        const data = fs.readFileSync(filePath, 'utf-8');
+        const parsed = JSON.parse(data);
+        if (parsed && typeof parsed === 'object') {
+          Object.entries(parsed).forEach(([key, val]) => {
+            if (val && typeof val === 'object') {
+              const lowerKey = key.toLowerCase();
+              serverUsersStore[lowerKey] = {
+                ...(serverUsersStore[lowerKey] || {}),
+                ...(val as Record<string, any>),
+                username: (val as any).username || (serverUsersStore[lowerKey] && serverUsersStore[lowerKey].username) || key,
+              };
+              loadedCount++;
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.error(`⚠️ Could not read user store from ${filePath}:`, err);
+    }
+  });
+
+  console.log(`✅ Loaded & unified ${Object.keys(serverUsersStore).length} permanent accounts from disk storage.`);
+  // Immediately synchronize all persistent storage files so all backups contain the unified accounts
+  savePersistedUsers(false);
+}
+
+function savePersistedUsers(appendLedger: boolean = true) {
   try {
-    if (fs.existsSync(USERS_FILE_PATH)) {
-      const data = fs.readFileSync(USERS_FILE_PATH, 'utf-8');
-      const parsed = JSON.parse(data);
-      if (parsed && typeof parsed === 'object') {
-        Object.entries(parsed).forEach(([key, val]) => {
-          if (val && typeof val === 'object') {
-            serverUsersStore[key.toLowerCase()] = {
-              ...(serverUsersStore[key.toLowerCase()] || {}),
-              ...(val as Record<string, any>),
-            };
-          }
-        });
-        console.log(`✅ Loaded ${Object.keys(serverUsersStore).length} accounts from persistent disk storage.`);
+    const serialized = JSON.stringify(serverUsersStore, null, 2);
+    // Write primary registry
+    fs.writeFileSync(USERS_FILE_PATH, serialized, 'utf-8');
+    // Write permanent archive
+    fs.writeFileSync(PERMANENT_ARCHIVE_PATH, serialized, 'utf-8');
+    // Write hot backup
+    fs.writeFileSync(USERS_BACKUP_PATH, serialized, 'utf-8');
+
+    // Append to immutable append-only ledger for extra safety
+    if (appendLedger) {
+      try {
+        const ledgerEntry = JSON.stringify({
+          timestamp: new Date().toISOString(),
+          totalAccounts: Object.keys(serverUsersStore).length,
+          accounts: Object.keys(serverUsersStore),
+        }) + '\n';
+        fs.appendFileSync(USERS_LEDGER_PATH, ledgerEntry, 'utf-8');
+      } catch (lErr) {
+        // Ledger non-blocking
       }
     }
   } catch (err) {
-    console.error('⚠️ Could not load persisted users:', err);
-  }
-}
-
-function savePersistedUsers() {
-  try {
-    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(serverUsersStore, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('⚠️ Failed to save users to disk:', err);
+    console.error('⚠️ Failed to save users to permanent disk storage:', err);
   }
 }
 
@@ -161,15 +195,20 @@ app.post('/api/users/register', (req, res) => {
   };
 
   if (targetUser && targetUser.username) {
-    const lowerKey = targetUser.username.toLowerCase();
+    const rawUsername = String(targetUser.username).trim();
+    const lowerKey = rawUsername.toLowerCase();
+    
     serverUsersStore[lowerKey] = {
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
+      points: 10,
       ...(serverUsersStore[lowerKey] || {}),
       ...targetUser,
-      username: targetUser.username,
+      username: rawUsername,
     };
+
     savePersistedUsers();
+    console.log(`💾 Permanent account registered & saved to backend disk: "${rawUsername}" (Total: ${Object.keys(serverUsersStore).length})`);
     io.emit('users:synced_all', serverUsersStore);
     return res.json({ success: true, user: serverUsersStore[lowerKey], total: Object.keys(serverUsersStore).length });
   }
@@ -187,9 +226,10 @@ app.post('/api/users/sync', (req, res) => {
       if (rec && typeof rec === 'object') {
         const lowerKey = key.toLowerCase();
         serverUsersStore[lowerKey] = {
+          points: 10,
           ...(serverUsersStore[lowerKey] || {}),
           ...(rec as Record<string, any>),
-          username: (rec as any).username || key,
+          username: (rec as any).username || (serverUsersStore[lowerKey] && serverUsersStore[lowerKey].username) || key,
         };
         updated = true;
       }
@@ -197,11 +237,13 @@ app.post('/api/users/sync', (req, res) => {
   }
 
   if (user && user.username) {
-    const lowerKey = user.username.toLowerCase();
+    const rawUsername = String(user.username).trim();
+    const lowerKey = rawUsername.toLowerCase();
     serverUsersStore[lowerKey] = {
+      points: 10,
       ...(serverUsersStore[lowerKey] || {}),
       ...user,
-      username: user.username,
+      username: rawUsername,
     };
     updated = true;
   }
@@ -214,21 +256,15 @@ app.post('/api/users/sync', (req, res) => {
   res.json({ success: true, count: Object.keys(serverUsersStore).length });
 });
 
-// User deletion endpoint
+// User deletion endpoint - PERMANENTLY DISABLED
+// User accounts are saved in the backend and can never be deleted
 app.delete('/api/users/:username', (req, res) => {
   const username = (req.params.username || '').toLowerCase();
-  if (username === 'pebblesthepenguinishaany83') {
-    return res.status(403).json({ success: false, error: 'Cannot delete primary admin account' });
-  }
-
-  if (serverUsersStore[username]) {
-    delete serverUsersStore[username];
-    savePersistedUsers();
-    io.emit('users:synced_all', serverUsersStore);
-    return res.json({ success: true, count: Object.keys(serverUsersStore).length });
-  }
-
-  return res.status(404).json({ success: false, error: 'User account not found' });
+  console.warn(`🛑 Rejected account deletion attempt for "${username}". Account deletion is permanently disabled.`);
+  return res.status(403).json({
+    success: false,
+    error: 'Account deletion is permanently disabled. All registered accounts are permanently saved in the backend and can never be deleted.',
+  });
 });
 
 // --- Cloud Run Authoritative Endpoints for Coins & VIP ---
