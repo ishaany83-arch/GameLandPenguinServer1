@@ -291,7 +291,7 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
   const handleGenerateTestPass = () => {
     const newPass = generateNewTestPass();
     addAuditLog('users', `Generated new test pass account: ${newPass.username}`);
-    setUserMsg(`Created new test pass: Username "${newPass.username}", Password "${newPass.passwordHash}"`);
+    setUserMsg(`Created new test pass: Username "${newPass.username}", Password "testpass123" (Encrypted in database)`);
     refreshData();
     setTimeout(() => setUserMsg(''), 6000);
   };
@@ -333,7 +333,7 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
   const handleGenerateVipAccount = (tier: 'Gold' | 'Diamond' | 'Platinum' = 'Gold') => {
     const acc = generateNewVipAccount(tier);
     addAuditLog('users', `Generated new VIP ${tier} account: ${acc.username}`);
-    setUserMsg(`Created VIP ${tier} Account: Username "${acc.username}", Password "${acc.passwordHash}"`);
+    setUserMsg(`Created VIP ${tier} Account: Username "${acc.username}", Password "vippass123" (Encrypted in database)`);
     refreshData();
     setTimeout(() => setUserMsg(''), 6000);
   };
@@ -3128,7 +3128,8 @@ export const AdminControlModal: React.FC<AdminControlModalProps> = ({
                     onClick={() => {
                       const newPass = generateNewTestPass();
                       refreshData();
-                      alert(`Created new single-use test pass:\nUsername: ${newPass.username}\nPassword: ${newPass.passwordHash}`);
+                      setUserMsg(`Created new single-use test pass: Username "${newPass.username}", Password "testpass123" (Encrypted)`);
+                      setTimeout(() => setUserMsg(''), 8000);
                     }}
                     className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-colors flex items-center gap-2 shadow-md"
                   >

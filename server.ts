@@ -3,6 +3,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { Server as SocketIOServer } from 'socket.io';
+import { encryptPassword, isPasswordEncrypted, verifyPassword } from './src/utils/security';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -13,7 +14,23 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
-const PORT = Number(process.env.PORT) || 3000;
+// In this AI Studio container environment, Nginx listens on 8080 and proxies to port 3000.
+// We must parse the CLI `--port` argument or default to 3000, ignoring any ambient PORT=8080 env var.
+function getListenPort(): number {
+  for (let i = 0; i < process.argv.length; i++) {
+    if ((process.argv[i] === '--port' || process.argv[i] === '-p') && process.argv[i + 1]) {
+      const parsed = parseInt(process.argv[i + 1], 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+  if (process.env.PORT && process.env.PORT !== '8080') {
+    const parsed = parseInt(process.env.PORT, 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+  return 3000;
+}
+
+const PORT = getListenPort();
 const USERS_FILE_PATH = path.join(process.cwd(), 'users_registry_data.json');
 const PERMANENT_ARCHIVE_PATH = path.join(process.cwd(), 'users_permanent_archive.json');
 const USERS_BACKUP_PATH = path.join(process.cwd(), 'users_registry_data.backup.json');
@@ -25,7 +42,7 @@ let onlineUsersCount = 1;
 const serverUsersStore: Record<string, any> = {
   pebblesthepenguinishaany83: {
     username: 'Pebblesthepenguinishaany83',
-    passwordHash: 'Pebblesthepenguinneedsagepoop',
+    passwordHash: encryptPassword('Pebblesthepenguinneedsagepoop'),
     name: 'Pebbles (Ishaan)',
     email: 'ishaany83@gmail.com',
     createdAt: new Date().toISOString(),
@@ -50,10 +67,13 @@ function loadPersistedUsers() {
           Object.entries(parsed).forEach(([key, val]) => {
             if (val && typeof val === 'object') {
               const lowerKey = key.toLowerCase();
+              const existing = serverUsersStore[lowerKey] || {};
+              const rawPass = (val as any).passwordHash || (val as any).password || existing.passwordHash;
               serverUsersStore[lowerKey] = {
-                ...(serverUsersStore[lowerKey] || {}),
+                ...existing,
                 ...(val as Record<string, any>),
-                username: (val as any).username || (serverUsersStore[lowerKey] && serverUsersStore[lowerKey].username) || key,
+                passwordHash: rawPass ? encryptPassword(rawPass) : existing.passwordHash,
+                username: (val as any).username || existing.username || key,
               };
               loadedCount++;
             }
@@ -65,13 +85,37 @@ function loadPersistedUsers() {
     }
   });
 
+  // Guarantee every single account in memory has an encrypted password
+  let encryptedCount = 0;
+  Object.keys(serverUsersStore).forEach((key) => {
+    const rec = serverUsersStore[key];
+    if (rec && rec.passwordHash) {
+      if (!isPasswordEncrypted(rec.passwordHash)) {
+        rec.passwordHash = encryptPassword(rec.passwordHash);
+        encryptedCount++;
+      }
+    }
+  });
+
   console.log(`✅ Loaded & unified ${Object.keys(serverUsersStore).length} permanent accounts from disk storage.`);
-  // Immediately synchronize all persistent storage files so all backups contain the unified accounts
+  if (encryptedCount > 0) {
+    console.log(`🔒 Encrypted & secured ${encryptedCount} passwords across accounts.`);
+  }
+
+  // Immediately synchronize all persistent storage files so all backups contain the encrypted unified accounts
   savePersistedUsers(false);
 }
 
 function savePersistedUsers(appendLedger: boolean = true) {
   try {
+    // Extra security check: ensure no plaintext passwords before disk serialization
+    Object.keys(serverUsersStore).forEach((key) => {
+      const rec = serverUsersStore[key];
+      if (rec && rec.passwordHash && !isPasswordEncrypted(rec.passwordHash)) {
+        rec.passwordHash = encryptPassword(rec.passwordHash);
+      }
+    });
+
     const serialized = JSON.stringify(serverUsersStore, null, 2);
     // Write primary registry
     fs.writeFileSync(USERS_FILE_PATH, serialized, 'utf-8');
@@ -106,7 +150,7 @@ io.on('connection', (socket) => {
   onlineUsersCount++;
   io.emit('users:count', { count: Math.max(1, onlineUsersCount) });
 
-  // Send server master user accounts database to newly connected client
+  // Send server master user accounts database (with encrypted passwords) to newly connected client
   socket.emit('users:synced_all', serverUsersStore);
 
   socket.on('user:join', (user: { username: string }) => {
@@ -124,9 +168,11 @@ io.on('connection', (socket) => {
       Object.entries(payload.users).forEach(([key, rec]) => {
         const lowerKey = key.toLowerCase();
         if (rec && typeof rec === 'object') {
+          const rawPass = (rec as any).passwordHash || (rec as any).password;
           serverUsersStore[lowerKey] = {
             ...(serverUsersStore[lowerKey] || {}),
             ...rec,
+            passwordHash: rawPass ? encryptPassword(rawPass) : (serverUsersStore[lowerKey] && serverUsersStore[lowerKey].passwordHash),
             username: (rec as any).username || key,
           };
           updated = true;
@@ -135,10 +181,11 @@ io.on('connection', (socket) => {
     }
     if (payload.user && payload.user.username) {
       const lowerKey = payload.user.username.toLowerCase();
+      const rawPass = payload.user.passwordHash || payload.user.password;
       serverUsersStore[lowerKey] = {
         ...(serverUsersStore[lowerKey] || {}),
         ...payload.user,
-        username: payload.user.username,
+        passwordHash: rawPass ? encryptPassword(rawPass) : (serverUsersStore[lowerKey] && serverUsersStore[lowerKey].passwordHash),
       };
       updated = true;
     }
@@ -177,17 +224,26 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Get all registered users
+// Get all registered users - all passwords are guaranteed encrypted
 app.get('/api/users', (req, res) => {
+  // Ensure all passwords in serverUsersStore are encrypted before sending
+  Object.keys(serverUsersStore).forEach((key) => {
+    const record = serverUsersStore[key];
+    if (record && record.passwordHash && !isPasswordEncrypted(record.passwordHash)) {
+      record.passwordHash = encryptPassword(record.passwordHash);
+    }
+  });
   res.json(serverUsersStore);
 });
 
-// Single user registration endpoint
+// Single user registration endpoint with mandatory password encryption
 app.post('/api/users/register', (req, res) => {
   const { user, username, password, email, name, passwordHash } = req.body;
+  const rawPassword = password || passwordHash || (user && (user.password || user.passwordHash));
+  const encryptedPassword = encryptPassword(rawPassword || '');
+
   const targetUser = user || {
     username,
-    passwordHash: passwordHash || password,
     email,
     name,
     createdAt: new Date().toISOString(),
@@ -204,11 +260,12 @@ app.post('/api/users/register', (req, res) => {
       points: 10,
       ...(serverUsersStore[lowerKey] || {}),
       ...targetUser,
+      passwordHash: encryptedPassword,
       username: rawUsername,
     };
 
     savePersistedUsers();
-    console.log(`💾 Permanent account registered & saved to backend disk: "${rawUsername}" (Total: ${Object.keys(serverUsersStore).length})`);
+    console.log(`💾 Permanent account registered & saved to backend disk with encrypted password: "${rawUsername}" (Total: ${Object.keys(serverUsersStore).length})`);
     io.emit('users:synced_all', serverUsersStore);
     return res.json({ success: true, user: serverUsersStore[lowerKey], total: Object.keys(serverUsersStore).length });
   }
@@ -216,7 +273,37 @@ app.post('/api/users/register', (req, res) => {
   return res.status(400).json({ success: false, error: 'Invalid username or user data provided.' });
 });
 
-// Bulk sync endpoint
+// User authentication login verification endpoint
+app.post('/api/users/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ success: false, error: 'Please enter both username and password.' });
+  }
+
+  const lowerKey = String(username).trim().toLowerCase();
+  const record = serverUsersStore[lowerKey];
+  if (!record) {
+    return res.status(404).json({ success: false, error: 'Account not found.' });
+  }
+
+  if (!verifyPassword(password, record.passwordHash)) {
+    return res.status(401).json({ success: false, error: 'Incorrect password. Please try again.' });
+  }
+
+  const now = new Date().toISOString();
+  record.lastLogin = now;
+  savePersistedUsers(false);
+
+  return res.json({
+    success: true,
+    user: {
+      ...record,
+      username: record.username || username,
+    },
+  });
+});
+
+// Bulk sync endpoint with password encryption
 app.post('/api/users/sync', (req, res) => {
   const { users, user } = req.body;
   let updated = false;
@@ -225,11 +312,14 @@ app.post('/api/users/sync', (req, res) => {
     Object.entries(users).forEach(([key, rec]) => {
       if (rec && typeof rec === 'object') {
         const lowerKey = key.toLowerCase();
+        const existing = serverUsersStore[lowerKey] || {};
+        const incomingPass = (rec as any).passwordHash || (rec as any).password || existing.passwordHash;
         serverUsersStore[lowerKey] = {
           points: 10,
-          ...(serverUsersStore[lowerKey] || {}),
+          ...existing,
           ...(rec as Record<string, any>),
-          username: (rec as any).username || (serverUsersStore[lowerKey] && serverUsersStore[lowerKey].username) || key,
+          passwordHash: incomingPass ? encryptPassword(incomingPass) : existing.passwordHash,
+          username: (rec as any).username || existing.username || key,
         };
         updated = true;
       }
@@ -239,10 +329,13 @@ app.post('/api/users/sync', (req, res) => {
   if (user && user.username) {
     const rawUsername = String(user.username).trim();
     const lowerKey = rawUsername.toLowerCase();
+    const existing = serverUsersStore[lowerKey] || {};
+    const incomingPass = user.passwordHash || user.password || existing.passwordHash;
     serverUsersStore[lowerKey] = {
       points: 10,
-      ...(serverUsersStore[lowerKey] || {}),
+      ...existing,
       ...user,
+      passwordHash: incomingPass ? encryptPassword(incomingPass) : existing.passwordHash,
       username: rawUsername,
     };
     updated = true;
@@ -445,10 +538,34 @@ async function startServer() {
     try {
       const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
-        server: { middlewareMode: true },
+        server: {
+          middlewareMode: true,
+          hmr: { server: httpServer },
+        },
         appType: 'spa',
       });
       app.use(vite.middlewares);
+
+      // Dev mode SPA route handler
+      app.use('*', async (req, res, next) => {
+        const url = req.originalUrl;
+        if (url.startsWith('/api') || url.startsWith('/socket.io')) {
+          return next();
+        }
+        try {
+          const indexPath = path.join(process.cwd(), 'index.html');
+          if (fs.existsSync(indexPath)) {
+            let template = fs.readFileSync(indexPath, 'utf-8');
+            template = await vite.transformIndexHtml(url, template);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+          } else {
+            next();
+          }
+        } catch (e: any) {
+          vite.ssrFixStacktrace?.(e);
+          next(e);
+        }
+      });
     } catch (e) {
       console.warn('Vite dev server middleware not loaded:', e);
     }
@@ -464,6 +581,18 @@ async function startServer() {
       });
     });
   }
+
+  httpServer.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`⚠️ Port ${PORT} in use, retrying in 1s...`);
+      setTimeout(() => {
+        httpServer.close();
+        httpServer.listen(PORT, '0.0.0.0');
+      }, 1000);
+    } else {
+      console.error('⚠️ HTTP Server error:', err);
+    }
+  });
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Gameland Penguin Real-Time Server running on port ${PORT}`);

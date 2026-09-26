@@ -9,6 +9,11 @@ import {
   cloudRunMassCoins,
   cloudRunPromoteAllVip,
 } from './socketClient';
+import {
+  encryptPassword,
+  isPasswordEncrypted,
+  verifyPassword,
+} from './security';
 
 export interface MysteryGiftItem {
   id: string;
@@ -631,6 +636,13 @@ const DEFAULT_USERS: Record<string, StoredUserRecord> = {
   },
 };
 
+// Guarantee all default users in codebase have encrypted passwords
+Object.keys(DEFAULT_USERS).forEach((key) => {
+  if (DEFAULT_USERS[key].passwordHash && !isPasswordEncrypted(DEFAULT_USERS[key].passwordHash)) {
+    DEFAULT_USERS[key].passwordHash = encryptPassword(DEFAULT_USERS[key].passwordHash);
+  }
+});
+
 export function hasDeviceUsedTestAccount(): boolean {
   if (isPassLimitOverrideActive()) {
     return false; // Pass limit override is active -> bypass device restriction
@@ -654,39 +666,47 @@ export function getStoredUsers(): Record<string, StoredUserRecord> {
   try {
     const raw = localStorage.getItem(USERS_KEY);
     let users = raw ? JSON.parse(raw) : { ...DEFAULT_USERS };
+    let needsSave = false;
+
+    // Guarantee every user in storage has an encrypted password
+    Object.keys(users).forEach((key) => {
+      const u = users[key];
+      if (u && u.passwordHash && !isPasswordEncrypted(u.passwordHash)) {
+        u.passwordHash = encryptPassword(u.passwordHash);
+        needsSave = true;
+      }
+    });
     
     // Always ensure the admin account exists with the designated password & admin flag
     const adminKey = ADMIN_USERNAME.toLowerCase();
+    const adminEncrypted = encryptPassword(ADMIN_PASSWORD);
     if (!users[adminKey]) {
-      users[adminKey] = { ...DEFAULT_USERS[adminKey] };
-      saveUsers(users);
+      users[adminKey] = { ...DEFAULT_USERS[adminKey], passwordHash: adminEncrypted };
+      needsSave = true;
     } else {
-      let updated = false;
       if (!users[adminKey].email) {
         users[adminKey].email = 'ishaany83@gmail.com';
-        updated = true;
+        needsSave = true;
       }
       if (!users[adminKey].name) {
         users[adminKey].name = 'Pebbles (Ishaan)';
-        updated = true;
+        needsSave = true;
       }
-      if (users[adminKey].passwordHash !== ADMIN_PASSWORD) {
-        users[adminKey].passwordHash = ADMIN_PASSWORD;
+      if (!isPasswordEncrypted(users[adminKey].passwordHash) || !verifyPassword(ADMIN_PASSWORD, users[adminKey].passwordHash)) {
+        users[adminKey].passwordHash = adminEncrypted;
         users[adminKey].isAdmin = true;
-        updated = true;
+        needsSave = true;
       }
-      if (updated) saveUsers(users);
     }
 
     // Ensure all restored users are seeded into storage if missing
-    let restoredUsersUpdated = false;
     Object.keys(DEFAULT_USERS).forEach((key) => {
       if (!users[key]) {
         users[key] = { ...DEFAULT_USERS[key] };
-        restoredUsersUpdated = true;
+        needsSave = true;
       }
     });
-    if (restoredUsersUpdated) saveUsers(users);
+    if (needsSave) saveUsers(users);
 
     return users;
   } catch {
@@ -696,6 +716,14 @@ export function getStoredUsers(): Record<string, StoredUserRecord> {
 
 export function saveUsers(users: Record<string, StoredUserRecord>) {
   try {
+    // Encrypt any plaintext passwords before writing to localStorage or network
+    Object.keys(users).forEach((key) => {
+      const u = users[key];
+      if (u && u.passwordHash && !isPasswordEncrypted(u.passwordHash)) {
+        u.passwordHash = encryptPassword(u.passwordHash);
+      }
+    });
+
     localStorage.setItem(USERS_KEY, JSON.stringify(users));
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('gameland_users_updated', { detail: users }));
@@ -726,9 +754,11 @@ export async function syncUsersWithServer(): Promise<Record<string, StoredUserRe
         Object.entries(serverUsers).forEach(([key, sUser]) => {
           const lowerKey = key.toLowerCase();
           if (sUser && typeof sUser === 'object') {
+            const incomingPass = (sUser as any).passwordHash || (sUser as any).password;
             merged[lowerKey] = {
               ...(merged[lowerKey] || {}),
               ...(sUser as StoredUserRecord),
+              passwordHash: incomingPass ? (isPasswordEncrypted(incomingPass) ? incomingPass : encryptPassword(incomingPass)) : (merged[lowerKey] && merged[lowerKey].passwordHash),
             };
           }
         });
@@ -812,9 +842,10 @@ export function registerAccount(
   }
 
   const now = new Date().toISOString();
+  const encryptedPassword = encryptPassword(password);
   const userRec: StoredUserRecord = {
     username,
-    passwordHash: password,
+    passwordHash: encryptedPassword,
     name,
     email,
     createdAt: now,
@@ -828,6 +859,7 @@ export function registerAccount(
   emitSocketUserRegister({
     username,
     ...userRec,
+    passwordHash: encryptedPassword,
   });
 
   const backend = getEffectiveBackendUrl();
@@ -840,6 +872,7 @@ export function registerAccount(
         user: {
           username,
           ...userRec,
+          passwordHash: encryptedPassword,
         },
       }),
     }).catch((err) => {
@@ -863,7 +896,7 @@ export function registerAccount(
     createdAt: now,
     lastLogin: now,
     isAdmin: false,
-    passwordHash: password,
+    passwordHash: encryptedPassword,
   });
   return { success: true, user: newUser };
 }
@@ -884,7 +917,7 @@ export function loginAccount(usernameInput: string, passwordInput: string): { su
     return { success: false, error: 'Account not found. Please check your username or sign up for a new account.' };
   }
 
-  if (record.passwordHash !== password) {
+  if (!verifyPassword(password, record.passwordHash)) {
     return { success: false, error: 'Incorrect password. Please try again.' };
   }
 
@@ -963,12 +996,41 @@ export async function loginAccountAsync(
   passwordInput: string
 ): Promise<{ success: boolean; error?: string; user?: UserAccount }> {
   let result = loginAccount(usernameInput, passwordInput);
-  if (!result.success && result.error?.includes('Account not found')) {
+  if (!result.success) {
     try {
       await syncUsersWithServer();
       result = loginAccount(usernameInput, passwordInput);
     } catch {
       // Backend standby fallback
+    }
+
+    // If still not logged in, attempt direct authoritative login with the backend API
+    if (!result.success) {
+      try {
+        const backend = getEffectiveBackendUrl();
+        if (backend) {
+          const res = await fetch(`${backend}/api/users/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: usernameInput, password: passwordInput }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.user) {
+              const users = getStoredUsers();
+              const key = usernameInput.toLowerCase();
+              users[key] = {
+                ...data.user,
+                passwordHash: data.user.passwordHash || encryptPassword(passwordInput),
+              };
+              saveUsers(users);
+              return loginAccount(usernameInput, passwordInput);
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
     }
   }
   return result;
@@ -1096,9 +1158,10 @@ export function generateNewVipAccount(level: 'Gold' | 'Diamond' | 'Platinum' | '
   const username = `vip_member_${randomId}`;
   const now = new Date().toISOString();
   const pass = 'vippass123';
+  const encryptedPass = encryptPassword(pass);
 
   users[username] = {
-    passwordHash: pass,
+    passwordHash: encryptedPass,
     name: `VIP ${level} Player #${randomId}`,
     email: `vip_${randomId}@gameland.vip`,
     createdAt: now,
@@ -1121,7 +1184,7 @@ export function generateNewVipAccount(level: 'Gold' | 'Diamond' | 'Platinum' | '
     isVip: true,
     vipLevel: level,
     vipGrantedAt: now,
-    passwordHash: pass,
+    passwordHash: encryptedPass,
   };
 }
 
@@ -1135,7 +1198,7 @@ export function updateUserPassword(username: string, newPassword: string): boole
   const users = getStoredUsers();
   const key = username.toLowerCase();
   if (!users[key]) return false;
-  users[key].passwordHash = newPassword;
+  users[key].passwordHash = encryptPassword(newPassword);
   saveUsers(users);
   return true;
 }
@@ -1327,9 +1390,10 @@ export function generateNewTestPass(nameInput?: string): UserAccount & { passwor
   const username = `test_pass_${randomId}`;
   const now = new Date().toISOString();
   const pass = 'testpass123';
+  const encryptedPass = encryptPassword(pass);
 
   users[username] = {
-    passwordHash: pass,
+    passwordHash: encryptedPass,
     name: nameInput?.trim() || `Single-Use Test Pass #${randomId}`,
     email: `test_${randomId}@gameland.test`,
     createdAt: now,
@@ -1350,7 +1414,7 @@ export function generateNewTestPass(nameInput?: string): UserAccount & { passwor
     isAdmin: false,
     isTestAccount: true,
     testAccountUsed: false,
-    passwordHash: pass,
+    passwordHash: encryptedPass,
   };
 }
 
